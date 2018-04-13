@@ -98,4 +98,19 @@
       <li><code>paperNumber</code>: paper number to do this for (default is own paper number).</li>
     </ul>
   </p>
+
+  <h3>paper.whenKeyPressed(), paper.whenKeyReleased()</h3>
+
+  <p>This is a helper function to listen to key board events.</p>
+
+  <ul>
+    <li><code>key</code>: character of the key pressed, for special keys this attribute containes a name like "Backspace"</li>
+    <li><code>code</code>: code of the key pressed </li>
+  </ul>
+
+  <p>
+    <code>paper.whenKeyPressed(function ({key, code}) => /* do something here */)</code>
+  </p>
+
+
 </body>

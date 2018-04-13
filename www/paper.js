@@ -4,7 +4,11 @@
   const messageCallbacks = {};
   let messageId = 0;
   workerContext.addEventListener('message', event => {
-    messageCallbacks[event.data.messageId](event.data.receiveData);
+    const callback = messageCallbacks[event.data.messageId]
+
+    if (callback) {
+      callback(event.data.receiveData);
+    }
   });
 
   workerContext.paper = {
@@ -84,6 +88,14 @@
     }
   });
 
+  workerContext.paper.whenKeyPressed = (callback) => {
+    messageCallbacks['keyboard.keyPressed'] = callback;
+  }
+
+  workerContext.paper.whenKeyReleased = (callback) => {
+    messageCallbacks['keyboard.keyReleased'] = callback;
+  }
+
   workerContext.paper.whenPointsAt = async ({
     direction,
     whiskerLength,
@@ -132,6 +144,7 @@
         x: (segment[0].x + segment[1].x) / 2,
         y: (segment[0].y + segment[1].y) / 2,
       };
+
       const whiskerEnd = {
         x: whiskerStart.x + (segment[1].y - segment[0].y) * whiskerLength,
         y: whiskerStart.y - (segment[1].x - segment[0].x) * whiskerLength,

@@ -50,6 +50,9 @@ export default class Program extends React.Component {
       iframe: null,
       debugData: { logs: [] },
     };
+
+    this._keyDownHandler = this._keyDownHandler.bind(this);
+    this._keyUpHandler = this._keyUpHandler.bind(this);
   }
 
   componentDidMount() {
@@ -57,9 +60,34 @@ export default class Program extends React.Component {
     this._worker.onmessage = this._receiveMessage;
     this._worker.onerror = this._receiveError;
     this._updateDebugData();
+
+    document.addEventListener('keydown', this._keyDownHandler);
+    document.addEventListener('keyup', this._keyUpHandler);
+  }
+
+  _keyDownHandler(evt) {
+    this._worker.postMessage({
+      messageId: 'keyboard.keyPressed',
+      receiveData: {
+        key: evt.key,
+        code: evt.code,
+      },
+    });
+  }
+
+  _keyUpHandler(evt) {
+    this._worker.postMessage({
+      messageId: 'keyboard.keyReleased',
+      receiveData: {
+        key: evt.key,
+        code: evt.code,
+      },
+    });
   }
 
   componentWillUnmount() {
+    document.removeEventListener('keyDown', this._keyDownHandler);
+    document.removeEventListener('keyUp', this._keyUpHandler);
     this._worker.terminate();
   }
 
