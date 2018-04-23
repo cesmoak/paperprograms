@@ -179,7 +179,11 @@
       supporterCtx.fill();
       supporterCtx.commit();
 
-      if (!lastWhiskerEnd || lastWhiskerEnd.x !== whiskerEnd.x || lastWhiskerEnd.y !== whiskerEnd.y) {
+      if (
+        !lastWhiskerEnd ||
+        lastWhiskerEnd.x !== whiskerEnd.x ||
+        lastWhiskerEnd.y !== whiskerEnd.y
+      ) {
         lastWhiskerEnd = whiskerEnd;
         if (whiskerPointCallback) whiskerPointCallback(whiskerEnd.x, whiskerEnd.y);
       }
