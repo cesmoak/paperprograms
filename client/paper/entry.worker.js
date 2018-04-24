@@ -1,3 +1,5 @@
+import sound from '../lib/sound/sound.worker';
+
 (function(workerContext) {
   if (workerContext.paper) return;
 
@@ -16,7 +18,6 @@
         data = {};
       }
 
-      messageId++;
       workerContext.postMessage({ command: 'get', sendData: { name, data }, messageId });
       return new workerContext.Promise(resolve => {
         messageCallbacks[messageId] = receivedData => {
@@ -189,4 +190,11 @@
       }
     }, 10);
   };
+
+  // add sound library
+  sound({
+    workerContext,
+    messageCallbacks,
+    getNextMessageId: () => messageId++,
+  });
 })(self);

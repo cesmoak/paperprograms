@@ -6,6 +6,7 @@ import xhr from 'xhr';
 
 import { forwardProjectionMatrixForPoints, mult } from '../utils';
 import styles from './Program.css';
+import sound from '../lib/sound/sound.runner';
 
 function matrixToCssTransform(matrix) {
   // prettier-ignore
@@ -135,6 +136,10 @@ export default class Program extends React.Component {
       }
     } else if (command === 'flushLogs') {
       this._addLogs(sendData);
+    } else if (command === 'sound') {
+      sound.run(sendData).then(receiveData => {
+        this._worker.postMessage({ messageId, receiveData });
+      });
     }
   };
 

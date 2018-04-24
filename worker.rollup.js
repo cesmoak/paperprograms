@@ -4,6 +4,7 @@ import nodeResolve from 'rollup-plugin-node-resolve';
 export default {
   input: 'client/paper/entry.worker.js',
   output: {
+    name: 'paper',
     file: 'www/paper.js',
     format: 'iife', // `importScripts` expects an iife
   },
