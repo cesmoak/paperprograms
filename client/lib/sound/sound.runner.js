@@ -1,85 +1,127 @@
 import uniqueId from 'lodash/uniqueId';
+import isObject from 'lodash/isObject';
 import Tone from 'tone';
 
-const toneObjects = {};
+const objectsStore = {};
 
-async function run(command) {
+async function cleanupProgram(programmNumber) {
+  const paperObjects = objectsStore[programmNumber];
+  if (paperObjects === undefined) {
+    return;
+  }
+
+  Object.values(paperObjects).forEach(object => object.destroy());
+
+  delete objectsStore[programmNumber];
+}
+
+async function runCommand(command) {
   try {
-    const { target, method, id, params } = command;
+    const { method, context } = command;
 
-    const targetObj = targets[target];
-    if (!targetObj) {
-      commandError(command, `target '${target}' doesn't exist`);
+    // special case create new object
+    if (method.name === 'new') {
+      const [constructorName, ...params] = method.params;
+
+      return createObject(context.programNumber, constructorName, params);
+    }
+
+    const paperObjects = objectsStore[context.programNumber];
+    if (!paperObjects) {
+      commandError(command, 'paper has no sound objects');
       return;
     }
 
-    const methodFn = targetObj[method];
+    const obj = paperObjects[context.objectId];
+    if (!obj) {
+      commandError(command, "object with this id does't exist");
+      return;
+    }
+
+    const methodFn = obj[method.name];
     if (!methodFn) {
-      commandError(command, `method '${method}' doesn't exist`);
-      return;
+      commandError(command, "method doesn't exist");
     }
 
-    // special case 'new' constructor has no id param
-    if (method === 'new') {
-      return methodFn(params);
-    }
-
-    const self = toneObjects[id];
-    if (self === undefined) {
-      return commandError(command, `invalid id ${id}`);
-    }
-
-    return methodFn(self, params);
+    return methodFn.apply(obj, method.params);
   } catch (e) {
     commandError(command, `RuntimeException ${JSON.stringify(e.stack)}`);
   }
 }
 
 function commandError(command, message) {
-  const { target, method, id, params } = command;
   /*eslint no-console: ["error", { allow: ["error"] }] */
-  console.error(
-    `couldn't execute command ${target}.${method}( self = ${id}, ${JSON.stringify(
-      params
-    )}): ${message}`
-  );
+  console.error(`couldn't execute command ${JSON.stringify(command)}: ${message}`);
 }
 
-const targets = {
-  Oscillator: {
-    new: options => {
-      const id = uniqueId('Tone.Oscillator');
-      toneObjects[id] = new Tone.Oscillator(options);
+class AudioNode {
+  constructor(toneObj) {
+    this.__toneObj = toneObj;
+  }
 
-      return id;
-    },
-  },
+  connect(self, node) {
+    this.__toneObj.connect(objectsStore[node.id]);
+  }
 
-  AudioNode: {
-    connect: (self, node) => {
-      self.connect(toneObjects[node.id]);
-    },
+  disconnect(node) {
+    if (!isObject(node)) {
+      this.__toneObj.disconnect(node);
+    } else {
+      this.__toneObj.disconnect(objectsStore[node.id]);
+    }
+  }
 
-    disconnect: (self, node) => {
-      self.disconnect(toneObjects[node.id]);
-    },
+  toMaster() {
+    this.__toneObj.toMaster();
+  }
 
-    toMaster: self => {
-      self.toMaster();
-    },
-  },
+  destroy() {
+    this.__toneObj.disconnect();
+    this.__toneObj = null;
+  }
+}
 
-  Source: {
-    start: self => {
-      self.start();
-    },
+class Source extends AudioNode {
+  constructor(toneObj) {
+    super(toneObj);
+  }
 
-    stop: self => {
-      self.stop();
-    },
-  },
+  start() {
+    this.__toneObj.start();
+  }
+
+  stop() {
+    this.__toneObj.stop();
+  }
+}
+
+class Oscillator extends Source {
+  constructor(options) {
+    super(new Tone.Oscillator(options));
+  }
+}
+
+const constructors = {
+  Oscillator: Oscillator,
+  AudioNode: AudioNode,
+  Source: Source,
 };
 
+function createObject(programmNumber, constructorName, params) {
+  const constructor = constructors[constructorName];
+  const objectId = uniqueId(`Tone.${constructorName}`);
+  const object = new (Function.prototype.bind.apply(constructor, params))();
+
+  if (!objectsStore[programmNumber]) {
+    objectsStore[programmNumber] = {};
+  }
+
+  objectsStore[programmNumber][objectId] = object;
+
+  return objectId;
+}
+
 export default {
-  run,
+  runCommand,
+  cleanupProgram,
 };

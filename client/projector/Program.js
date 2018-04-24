@@ -60,6 +60,7 @@ export default class Program extends React.Component {
   }
 
   componentWillUnmount() {
+    sound.cleanupProgram(this._program().number);
     this._worker.terminate();
   }
 
@@ -137,9 +138,14 @@ export default class Program extends React.Component {
     } else if (command === 'flushLogs') {
       this._addLogs(sendData);
     } else if (command === 'sound') {
-      sound.run(sendData).then(receiveData => {
-        this._worker.postMessage({ messageId, receiveData });
-      });
+      sound
+        .runCommand({
+          context: { ...sendData.context, programNumber: this._program().number },
+          method: sendData.method,
+        })
+        .then(receiveData => {
+          this._worker.postMessage({ messageId, receiveData });
+        });
     }
   };
 

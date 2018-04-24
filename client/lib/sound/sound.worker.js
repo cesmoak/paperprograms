@@ -1,10 +1,10 @@
 export default function({ workerContext, getNextMessageId, messageCallbacks }) {
-  function send(target, method, id, params) {
+  function send({ method, context }) {
     const messageId = getNextMessageId();
 
     workerContext.postMessage({
       command: 'sound',
-      sendData: { target, method, id, params },
+      sendData: { method, context },
       messageId,
     });
 
@@ -16,11 +16,16 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
   }
 
   workerContext.sound = {
-    Oscillator: async options => {
-      const id = await send('Oscillator', 'new', null, options);
-      return new Oscillator(id);
-    },
+    Oscillator: async options => newObject('Oscillator', [options]),
   };
+
+  async function newObject(constructorName, params) {
+    const id = await send({
+      method: { name: 'new', params: [constructorName].concat(params) },
+      context: {},
+    });
+    return new constructors[constructorName](id);
+  }
 
   class AudioNode {
     constructor(id) {
@@ -33,20 +38,23 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
       };
     }
 
-    send(command, method, params) {
-      return send(command, method, this.__id, params);
+    send(methodName, params) {
+      return send({
+        method: { name: methodName, params },
+        context: { objectId: this.__id },
+      });
     }
 
     connect(node) {
-      return this.send('AudioNode', 'connect', { node: node.toJSON() });
+      return this.send('connect', [node.toJSON()]);
     }
 
     disconnect(node) {
-      return this.send('AudioNode', 'disconnect', { node: node.toJSON() });
+      return this.send('disconnect', [node.toJSON()]);
     }
 
     toMaster() {
-      return this.send('AudioNode', 'toMaster');
+      return this.send('toMaster');
     }
   }
 
@@ -56,11 +64,11 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
     }
 
     start() {
-      return this.send('Source', 'start');
+      return this.send('start');
     }
 
     stop() {
-      return this.send('Source', 'stop');
+      return this.send('stop');
     }
   }
 
@@ -69,4 +77,8 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
       super(id);
     }
   }
+
+  const constructors = {
+    Oscillator,
+  };
 }
