@@ -143,7 +143,7 @@ export default class Program extends React.Component {
           context: { ...sendData.context, programNumber: this._program().number },
           method: sendData.method,
         })
-        .then(receiveData => {
+        .then(async receiveData => {
           this._worker.postMessage({ messageId, receiveData });
         });
     }

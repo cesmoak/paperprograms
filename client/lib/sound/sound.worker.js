@@ -17,6 +17,8 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
 
   workerContext.sound = {
     Oscillator: async options => newObject('Oscillator', [options]),
+    Microphone: async options => newObject('Microphone', [options]),
+    PitchShift: async options => newObject('PitchShift', [options]),
   };
 
   async function newObject(constructorName, params) {
@@ -76,9 +78,47 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
     constructor(id) {
       super(id);
     }
+
+    get frequency() {
+      return this.send('getFrequency');
+    }
+
+    set frequency(value) {
+      return this.send('setFrequency', [value]);
+    }
+  }
+
+  class Microphone extends Source {
+    constructor(id) {
+      super(id);
+    }
+
+    open() {
+      return this.send('open');
+    }
+
+    close() {
+      return this.send('close');
+    }
+  }
+
+  class PitchShift extends AudioNode {
+    constructor(id) {
+      super(id);
+    }
+
+    get pitch() {
+      return this.send('getPitch');
+    }
+
+    set pitch(value) {
+      return this.send('setPitch', [value]);
+    }
   }
 
   const constructors = {
     Oscillator,
+    Microphone,
+    PitchShift,
   };
 }

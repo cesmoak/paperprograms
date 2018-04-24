@@ -5,14 +5,14 @@ import Tone from 'tone';
 const objectsStore = {};
 
 async function cleanupProgram(programmNumber) {
-  const paperObjects = objectsStore[programmNumber];
-  if (paperObjects === undefined) {
-    return;
-  }
+  Object.entries(objectsStore).forEach(([objectId, entry]) => {
+    if (entry.programNumber !== programmNumber) {
+      return;
+    }
 
-  Object.values(paperObjects).forEach(object => object.destroy());
-
-  delete objectsStore[programmNumber];
+    entry.object.destroy();
+    delete objectsStore[objectId];
+  });
 }
 
 async function runCommand(command) {
@@ -26,24 +26,18 @@ async function runCommand(command) {
       return createObject(context.programNumber, constructorName, params);
     }
 
-    const paperObjects = objectsStore[context.programNumber];
-    if (!paperObjects) {
-      commandError(command, 'paper has no sound objects');
-      return;
-    }
-
-    const obj = paperObjects[context.objectId];
-    if (!obj) {
+    const entry = objectsStore[context.objectId];
+    if (!entry) {
       commandError(command, "object with this id does't exist");
       return;
     }
 
-    const methodFn = obj[method.name];
+    const methodFn = entry.object[method.name];
     if (!methodFn) {
       commandError(command, "method doesn't exist");
     }
 
-    return methodFn.apply(obj, method.params);
+    return methodFn.apply(entry.object, method.params);
   } catch (e) {
     commandError(command, `RuntimeException ${JSON.stringify(e.stack)}`);
   }
@@ -59,8 +53,8 @@ class AudioNode {
     this.__toneObj = toneObj;
   }
 
-  connect(self, node) {
-    this.__toneObj.connect(objectsStore[node.id]);
+  connect(node) {
+    this.__toneObj.connect(objectsStore[node.id].object.__toneObj);
   }
 
   disconnect(node) {
@@ -99,24 +93,73 @@ class Oscillator extends Source {
   constructor(options) {
     super(new Tone.Oscillator(options));
   }
+
+  getFrequency() {
+    return this.__toneObj.frequency.value;
+  }
+
+  setFrequency(value) {
+    this.__toneObj.frequency.value = value;
+  }
+
+  getType() {
+    return this.__toneObj.type;
+  }
+
+  setType(value) {
+    this.__toneObj.type = value;
+  }
+}
+
+class Microphone extends Source {
+  constructor(options) {
+    super(new Tone.UserMedia(options));
+  }
+
+  open() {
+    this.__toneObj.open();
+  }
+
+  close() {
+    this.__toneObj.close();
+  }
+
+  destroy() {
+    this.__toneObj.close();
+    super.destroy();
+  }
+}
+
+class PitchShift extends AudioNode {
+  constructor(options) {
+    super(new Tone.PitchShift(options));
+  }
+
+  getPitch() {
+    return this.__toneObj.pitch;
+  }
+
+  setPitch(value) {
+    this.__toneObj.pitch = value;
+  }
 }
 
 const constructors = {
-  Oscillator: Oscillator,
-  AudioNode: AudioNode,
-  Source: Source,
+  // Source
+  Oscillator,
+  Microphone,
+
+  // Effects
+  PitchShift,
 };
 
-function createObject(programmNumber, constructorName, params) {
+function createObject(programNumber, constructorName, params) {
   const constructor = constructors[constructorName];
   const objectId = uniqueId(`Tone.${constructorName}`);
-  const object = new (Function.prototype.bind.apply(constructor, params))();
 
-  if (!objectsStore[programmNumber]) {
-    objectsStore[programmNumber] = {};
-  }
+  const object = new constructor(...params);
 
-  objectsStore[programmNumber][objectId] = object;
+  objectsStore[objectId] = { programNumber, object };
 
   return objectId;
 }
