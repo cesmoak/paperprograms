@@ -19,6 +19,9 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
     Oscillator: async options => newObject('Oscillator', [options]),
     Microphone: async options => newObject('Microphone', [options]),
     PitchShift: async options => newObject('PitchShift', [options]),
+    Waveform: async options => newObject('Waveform', [options]),
+    FFT: async options => newObject('FFT', [options]),
+    Meter: async options => newObject('Meter', [options]),
 
     input: (async () => {
       const paperNumber = await workerContext.paper.get('number');
@@ -39,7 +42,7 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
       const currentPaperNumber = await workerContext.paper.get('number');
 
       // disconnect output from previous paper if it was connected
-      if (currentPaperNumber !== null) {
+      if (currentTargetPaperNumber !== null) {
         await send({
           method: {
             name: 'disconnect',
@@ -164,9 +167,44 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
     }
   }
 
+  class DataNode extends AudioNode {
+    constructor(id) {
+      super(id);
+    }
+
+    getValue() {
+      return this.send('getValue');
+    }
+  }
+
+  class Waveform extends DataNode {
+    constructor(id) {
+      super(id);
+    }
+  }
+
+  class Meter extends DataNode {
+    constructor(id) {
+      super(id);
+    }
+
+    getLevel() {
+      return this.send('getLevel');
+    }
+  }
+
+  class FFT extends DataNode {
+    constructor(id) {
+      super(id);
+    }
+  }
+
   const constructors = {
     Oscillator,
     Microphone,
     PitchShift,
+    Waveform,
+    Meter,
+    FFT,
   };
 }

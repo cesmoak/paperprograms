@@ -160,6 +160,34 @@ class PitchShift extends AudioNode {
   }
 }
 
+class DataNode extends AudioNode {
+  getValue() {
+    return this.__toneObj.getValue();
+  }
+}
+
+class Waveform extends DataNode {
+  constructor(options) {
+    super(new Tone.Waveform(options));
+  }
+}
+
+class FFT extends DataNode {
+  constructor(options) {
+    super(new Tone.FFT(options));
+  }
+}
+
+class Meter extends DataNode {
+  constructor(options) {
+    super(new Tone.Meter(options));
+  }
+
+  getLevel() {
+    return this.__toneObj.getLevel();
+  }
+}
+
 const constructors = {
   // Source
   Oscillator,
@@ -167,6 +195,11 @@ const constructors = {
 
   // Effects
   PitchShift,
+
+  // Visualization
+  Waveform,
+  FFT,
+  Meter,
 };
 
 function createObject(programNumber, constructorName, params) {
