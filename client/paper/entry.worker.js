@@ -11,6 +11,7 @@ import sound from '../lib/sound/sound.worker';
 
   workerContext.paper = {
     get(name, data, callback) {
+      messageId++;
       if (typeof data === 'function') {
         callback = data;
         data = {};
@@ -195,6 +196,6 @@ import sound from '../lib/sound/sound.worker';
   sound({
     workerContext,
     messageCallbacks,
-    getNextMessageId: () => messageId++,
+    getNextMessageId: () => ++messageId,
   });
 })(self);

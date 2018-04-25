@@ -53,6 +53,7 @@ export default class Program extends React.Component {
   }
 
   componentDidMount() {
+    sound.initProgram(this._program().number);
     this._worker = new Worker(this._program().currentCodeUrl);
     this._worker.onmessage = this._receiveMessage;
     this._worker.onerror = this._receiveError;

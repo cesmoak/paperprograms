@@ -4,13 +4,27 @@ import Tone from 'tone';
 
 const objectsStore = {};
 
-async function cleanupProgram(programmNumber) {
+function initProgram(programNumber) {
+  // Source Node
+  objectsStore[`Program[${programNumber}].AudioInput`] = {
+    programNumber,
+    object: new ThroughNode(),
+  };
+
+  // Output Node
+  objectsStore[`Program[${programNumber}].AudioOutput`] = {
+    programNumber,
+    object: new ThroughNode(),
+  };
+}
+
+function cleanupProgram(programNumber) {
   Object.entries(objectsStore).forEach(([objectId, entry]) => {
-    if (entry.programNumber !== programmNumber) {
+    if (entry.programNumber !== programNumber) {
       return;
     }
 
-    entry.object.destroy();
+    entry.object.dispose();
     delete objectsStore[objectId];
   });
 }
@@ -54,7 +68,8 @@ class AudioNode {
   }
 
   connect(node) {
-    this.__toneObj.connect(objectsStore[node.id].object.__toneObj);
+    const other = objectsStore[node.id].object.__toneObj;
+    this.__toneObj.connect(other);
   }
 
   disconnect(node) {
@@ -69,9 +84,15 @@ class AudioNode {
     this.__toneObj.toMaster();
   }
 
-  destroy() {
-    this.__toneObj.disconnect();
+  dispose() {
+    this.__toneObj.dispose();
     this.__toneObj = null;
+  }
+}
+
+class ThroughNode extends AudioNode {
+  constructor() {
+    super(new Tone.Panner()); // Panner is just a placeholder for an AudioNode that does nothing
   }
 }
 
@@ -123,11 +144,6 @@ class Microphone extends Source {
   close() {
     this.__toneObj.close();
   }
-
-  destroy() {
-    this.__toneObj.close();
-    super.destroy();
-  }
 }
 
 class PitchShift extends AudioNode {
@@ -156,7 +172,6 @@ const constructors = {
 function createObject(programNumber, constructorName, params) {
   const constructor = constructors[constructorName];
   const objectId = uniqueId(`Tone.${constructorName}`);
-
   const object = new constructor(...params);
 
   objectsStore[objectId] = { programNumber, object };
@@ -165,6 +180,7 @@ function createObject(programNumber, constructorName, params) {
 }
 
 export default {
-  runCommand,
+  initProgram,
   cleanupProgram,
+  runCommand,
 };
