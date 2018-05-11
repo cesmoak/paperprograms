@@ -127,6 +127,16 @@ export default class Program extends React.Component {
         this._worker.postMessage({ messageId, receiveData: { object: this.props.papers } });
       } else if (sendData.name === 'markers') {
         this._worker.postMessage({ messageId, receiveData: { object: this.props.markers } });
+      } else if (sendData.name === 'camera') {
+        this.props.grabCameraImageAndProjectionData().then(object => {
+          this._worker.postMessage(
+            {
+              messageId,
+              receiveData: { object },
+            },
+            [object.cameraImage]
+          );
+        });
       }
     } else if (command === 'set') {
       if (sendData.name === 'data') {
@@ -217,7 +227,7 @@ export default class Program extends React.Component {
 
           return (
             <canvas
-              key="canvas"
+              key={`canvas_${programNumberString}`}
               ref={el => {
                 if (el && this[`_canvasAvailableCallback_${programNumber}`]) {
                   this[`_canvasAvailableCallback_${programNumber}`](el);
@@ -245,7 +255,7 @@ export default class Program extends React.Component {
         {this.state.iframe && this.renderIframe()}
         {Object.keys(this.state.showSupporterCanvasById).map(supporterCanvasId => (
           <canvas
-            key="supporterCanvas"
+            key={`supporterCanvas_${supporterCanvasId}`}
             ref={el => {
               if (el && this[`_supporterCanvasAvailableCallback_${supporterCanvasId}`]) {
                 this[`_supporterCanvasAvailableCallback_${supporterCanvasId}`](el);

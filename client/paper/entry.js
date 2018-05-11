@@ -1,3 +1,6 @@
+import Matrix from 'node-matrices';
+import { projectPoint } from '../utils';
+import { fillQuadTex, fillTriTex } from './canvasUtils';
 import sound from '../lib/sound/sound.worker';
 
 (function(workerContext) {
@@ -11,7 +14,6 @@ import sound from '../lib/sound/sound.worker';
 
   workerContext.paper = {
     get(name, data, callback) {
-      messageId++;
       if (typeof data === 'function') {
         callback = data;
         data = {};
@@ -19,6 +21,7 @@ import sound from '../lib/sound/sound.worker';
         data = {};
       }
 
+      messageId++;
       workerContext.postMessage({ command: 'get', sendData: { name, data }, messageId });
       return new workerContext.Promise(resolve => {
         messageCallbacks[messageId] = receivedData => {
@@ -85,6 +88,29 @@ import sound from '../lib/sound/sound.worker';
       log('Error', [event.reason.message], (event.reason.stack || '').split('\n')[1]);
     }
   });
+
+  function normalizePoints(points) {
+    if (points.topLeft) {
+      const { topLeft, topRight, bottomRight, bottomLeft } = points;
+      return [topLeft, topRight, bottomRight, bottomLeft];
+    }
+    return points;
+  }
+
+  workerContext.paper.drawFromCamera = (ctx, camera, srcPoints, dstPoints) => {
+    srcPoints = normalizePoints(srcPoints);
+    dstPoints = normalizePoints(dstPoints);
+
+    const forwardProjection = new Matrix(camera.forwardProjectionData);
+    srcPoints = srcPoints.map(p => projectPoint(p, forwardProjection));
+
+    ctx.fillStyle = ctx.createPattern(camera.cameraImage, 'no-repeat');
+    if (srcPoints.length === 3) {
+      fillTriTex(ctx, srcPoints, dstPoints);
+    } else if (srcPoints.length === 4) {
+      fillQuadTex(ctx, srcPoints, dstPoints);
+    }
+  };
 
   workerContext.paper.whenPointsAt = async ({
     direction,
@@ -190,12 +216,12 @@ import sound from '../lib/sound/sound.worker';
         if (whiskerPointCallback) whiskerPointCallback(whiskerEnd.x, whiskerEnd.y);
       }
     }, 10);
-  };
 
-  // add sound library
-  sound({
-    workerContext,
-    messageCallbacks,
-    getNextMessageId: () => ++messageId,
-  });
+    // add sound library
+    sound({
+      workerContext,
+      messageCallbacks,
+      getNextMessageId: () => ++messageId,
+    });
+  };
 })(self);
