@@ -33,11 +33,15 @@ export default class Whisker extends EventEmitter {
       this._ctx = canvas.getContext('2d');
       this.paperNumber = number;
 
-      setInterval(this.update, 10);
+      this._updateInterval = setInterval(this.update, 10);
     });
   }
 
   async update() {
+    if (!this._ctx) {
+      return;
+    }
+
     const papers = await paper.get('papers');
     const points = papers[this.paperNumber].points;
 
@@ -130,11 +134,15 @@ export default class Whisker extends EventEmitter {
 
     if (this._ctx) {
       this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+      this._ctx.commit();
+      this._ctx = null;
     }
 
     // TODO: cleanup canvas, currently not possible to destroy requested canvas
 
-    clearInterval(this.update);
+    if (this._updateInterval !== undefined) {
+      clearInterval(this._updateInterval);
+    }
   }
 }
 
