@@ -1,6 +1,6 @@
 import uniqueId from 'lodash/uniqueId';
 import isObject from 'lodash/isObject';
-import Tone from 'tone';
+import Tone from 'tone/';
 
 const objectsStore = {};
 

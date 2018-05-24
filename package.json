@@ -53,7 +53,7 @@
     "react-monaco-editor": "^0.13.0",
     "shuffle-seed": "^1.1.6",
     "style-loader": "^0.19.1",
-    "tone": "^0.12.80",
+    "tone": "^13.1.19",
     "transform-loader": "^0.2.4",
     "uuid": "^3.2.1",
     "webpack": "^3.11.0",
