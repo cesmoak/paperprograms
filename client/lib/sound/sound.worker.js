@@ -36,41 +36,6 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
     })(),
   };
 
-  var currentTargetPaperNumber = null;
-  workerContext.paper.whenPointsAt({
-    callback: async data => {
-      const currentPaperNumber = await workerContext.paper.get('number');
-
-      // disconnect output from previous paper if it was connected
-      if (currentTargetPaperNumber !== null) {
-        await send({
-          method: {
-            name: 'disconnect',
-            params: [{ id: `Program[${currentTargetPaperNumber}].AudioInput` }],
-          },
-          context: { objectId: `Program[${currentPaperNumber}].AudioOutput` },
-        });
-      }
-
-      if (data === null) {
-        return;
-      }
-
-      // connect to new paper if there is a new paper
-      currentTargetPaperNumber = data.paperNumber;
-
-      await send({
-        method: {
-          name: 'connect',
-          params: [{ id: `Program[${currentTargetPaperNumber}].AudioInput` }],
-        },
-        context: { objectId: `Program[${currentPaperNumber}].AudioOutput` },
-      });
-    },
-
-    direction: 'right',
-  });
-
   async function newObject(constructorName, params) {
     const id = await send({
       method: { name: 'new', params: [constructorName].concat(params) },
@@ -98,11 +63,27 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
       });
     }
 
-    connect(node) {
+    async connect(node) {
+      if (node.__id.endsWith('AudioOutput')) {
+        AudioNode.outputCount++;
+
+        if (AudioNode.soundWhisker === null) {
+          AudioNode.soundWhisker = await AudioNode.getSoundWhisker();
+        }
+      }
+
       return this.send('connect', [node.toJSON()]);
     }
 
     disconnect(node) {
+      if (node.__id.endsWith('AudioOutput')) {
+        AudioNode.outputCount--;
+        if (AudioNode.outputCount === 0 && AudioNode.soundWhisker !== null) {
+          AudioNode.soundWhisker.destroy();
+          AudioNode.soundWhisker = null;
+        }
+      }
+
       return this.send('disconnect', [node.toJSON()]);
     }
 
@@ -110,6 +91,35 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
       return this.send('toMaster');
     }
   }
+
+  AudioNode.outputCount = 0;
+  AudioNode.soundWhisker = null;
+  AudioNode.getSoundWhisker = async () => {
+    const whisker = await workerContext.paper.get('whisker', { color: 'blue', direction: 'down' })
+    const currentPaperNumber = await workerContext.paper.get('number');
+
+    whisker.on('paperAdded', ({ paperNumber }) => {
+      send({
+        method: {
+          name: 'connect',
+          params: [{ id: `Program[${paperNumber}].AudioInput` }],
+        },
+        context: { objectId: `Program[${currentPaperNumber}].AudioOutput` },
+      });
+    });
+
+    whisker.on('paperRemoved', ({ paperNumber }) => {
+      send({
+        method: {
+          name: 'disconnect',
+          params: [{ id: `Program[${paperNumber}].AudioInput` }],
+        },
+        context: { objectId: `Program[${currentPaperNumber}].AudioOutput` },
+      });
+    });
+
+    return whisker;
+  };
 
   class Source extends AudioNode {
     constructor(id) {
