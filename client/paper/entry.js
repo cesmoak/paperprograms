@@ -2,7 +2,7 @@ import Matrix from 'node-matrices';
 import { projectPoint } from '../utils';
 import { fillQuadTex, fillTriTex } from './canvasUtils';
 
-(function(workerContext) {
+(function (workerContext) {
   if (workerContext.paper) return;
 
   const messageCallbacks = {};
@@ -10,6 +10,8 @@ import { fillQuadTex, fillTriTex } from './canvasUtils';
   workerContext.addEventListener('message', event => {
     messageCallbacks[event.data.messageId](event.data.receiveData);
   });
+
+  const channels = {};
 
   workerContext.paper = {
     get(name, data, callback) {
@@ -40,6 +42,28 @@ import { fillQuadTex, fillTriTex } from './canvasUtils';
         };
       });
     },
+
+    emit(paperNumber, eventName, data) {
+      const channelName = `${paperNumber}-${eventName}`;
+      if (!channels[channelName]) {
+        channels[channelName] = new BroadcastChannel(channelName);
+      }
+      channels[channelName].postMessage(data);
+    },
+    async addEventListener(eventName, callback) {
+      const paperNumber = await workerContext.paper.get('number');
+      const channelName = `${paperNumber}-${eventName}`;
+
+      if (!channels[channelName]) {
+        channels[channelName] = new BroadcastChannel(channelName);
+      }
+      channels[channelName].addEventListener('message', callback);
+    },
+    async removeEventListener(eventName, callback) {
+      const paperNumber = await workerContext.paper.get('number');
+      const channelName = `${paperNumber}-${eventName}`;
+      channels[channelName].removeEventListener('message', callback);
+    },
   };
 
   let logs = [];
@@ -65,7 +89,7 @@ import { fillQuadTex, fillTriTex } from './canvasUtils';
 
     try {
       logData.args = args.map(arg => JSON.stringify(arg));
-    } catch (_) {} // eslint-disable-line no-empty
+    } catch (_) { } // eslint-disable-line no-empty
 
     const stackData = (stackLine || new Error().stack.split('\n')[3]).match(/\/program\..*/);
     if (stackData) {
@@ -77,6 +101,9 @@ import { fillQuadTex, fillTriTex } from './canvasUtils';
     logs.push(logData);
     flushLogs();
   }
+
+  workerContext.logger = console;
+
   workerContext.console = {};
   workerContext.console.log = (...args) => log('console.log', args);
   workerContext.console.warn = (...args) => log('console.warn', args);
