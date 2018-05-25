@@ -2,7 +2,7 @@ import Matrix from 'node-matrices';
 import { projectPoint } from '../utils';
 import { fillQuadTex, fillTriTex } from './canvasUtils';
 
-(function (workerContext) {
+(function(workerContext) {
   if (workerContext.paper) return;
 
   const messageCallbacks = {};
@@ -89,7 +89,7 @@ import { fillQuadTex, fillTriTex } from './canvasUtils';
 
     try {
       logData.args = args.map(arg => JSON.stringify(arg));
-    } catch (_) { } // eslint-disable-line no-empty
+    } catch (_) {} // eslint-disable-line no-empty
 
     const stackData = (stackLine || new Error().stack.split('\n')[3]).match(/\/program\..*/);
     if (stackData) {
