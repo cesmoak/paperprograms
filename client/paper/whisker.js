@@ -1,16 +1,19 @@
-/*global paper, Promise*/
+/*global Promise*/
 import EventEmitter from 'events';
 import uniqueId from 'lodash/uniqueId';
+import Paper from './paper';
 
 export default class Whisker extends EventEmitter {
   constructor({
-    paperNumber = paper.get('number'),
+    api,
+    paperNumber,
     direction = 'up',
     whiskerLength = 0.7,
     requiredData = [],
     color = 'rgb(255, 0, 0)',
   }) {
     super();
+    this._api = api;
     this.direction = direction;
     this.whiskerLength = whiskerLength;
     this.requiredData = requiredData;
@@ -21,8 +24,12 @@ export default class Whisker extends EventEmitter {
 
     this.update = this.update.bind(this);
 
+    if (!paperNumber) {
+      paperNumber = this._api.get('number');
+    }
+
     Promise.all([
-      paper.get('supporterCanvas', { id: uniqueId('whiskerCanvas') }),
+      this._api.get('supporterCanvas', { id: uniqueId('whiskerCanvas') }),
       paperNumber,
     ]).then(([canvas, number]) => {
       if (this._destroyed) {
@@ -42,7 +49,7 @@ export default class Whisker extends EventEmitter {
       return;
     }
 
-    const papers = await paper.get('papers');
+    const papers = await this._api.get('papers');
     const points = papers[this.paperNumber].points;
 
     let segment = [points.topLeft, points.topRight];
@@ -142,6 +149,32 @@ export default class Whisker extends EventEmitter {
 
     if (this._updateInterval !== undefined) {
       clearInterval(this._updateInterval);
+    }
+  }
+
+  async get(command) {
+    switch (command) {
+      case 'paper':
+        if (!this._pointAtData) {
+          return null;
+        }
+
+        return new Paper({
+          api: this._api,
+          number: this._pointAtData.paperNumber,
+          isOwnPaper: (await this._api.get('number')) === this._pointAtData.paperNumber,
+        });
+
+      case 'data': {
+        if (!this._pointAtData) {
+          return {};
+        }
+
+        return this._pointAtData.paper.data;
+      }
+
+      default:
+        throw new Error(`whisker.get: Unknown command "${command}"`);
     }
   }
 }

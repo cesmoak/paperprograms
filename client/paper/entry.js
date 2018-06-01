@@ -12,10 +12,10 @@ import Whisker from './whisker';
     messageCallbacks[event.data.messageId](event.data.receiveData);
   });
 
-  workerContext.paper = {
+  const paper = (workerContext.paper = {
     get(name, data, callback) {
       if (name === 'whisker') {
-        const whisker = new Whisker(data);
+        const whisker = new Whisker({ ...data, api: paper });
 
         if (callback) {
           callback(whisker);
@@ -61,7 +61,7 @@ import Whisker from './whisker';
         };
       });
     },
-  };
+  });
 
   const supporterCanvasesById = {};
 
@@ -74,7 +74,7 @@ import Whisker from './whisker';
         resolve(cachedCanvas);
       } else {
         resolve(
-          workerContext.paper._get('supporterCanvas', data, callback).then(canvas => {
+          paper._get('supporterCanvas', data, callback).then(canvas => {
             supporterCanvasesById[id] = canvas;
             return canvas;
           })
@@ -90,7 +90,7 @@ import Whisker from './whisker';
       if (data.number) {
         resolve(data.number);
       } else {
-        resolve(workerContext.paper.get('number'));
+        resolve(paper.get('number'));
       }
     }).then(id => {
       const cachedCanvas = paperCanvasesById[id];
@@ -98,7 +98,7 @@ import Whisker from './whisker';
         return cachedCanvas;
       }
 
-      return workerContext.paper._get('canvas', data, callback).then(canvas => {
+      return paper._get('canvas', data, callback).then(canvas => {
         paperCanvasesById[id] = canvas;
         return canvas;
       });
@@ -163,7 +163,7 @@ import Whisker from './whisker';
     return points;
   }
 
-  workerContext.paper.drawFromCamera = (ctx, camera, srcPoints, dstPoints) => {
+  paper.drawFromCamera = (ctx, camera, srcPoints, dstPoints) => {
     srcPoints = normalizePoints(srcPoints);
     dstPoints = normalizePoints(dstPoints);
 
@@ -179,7 +179,7 @@ import Whisker from './whisker';
   };
 
   // TODO: remove paper.whenPointsAt
-  workerContext.paper.whenPointsAt = async ({
+  paper.whenPointsAt = async ({
     direction,
     whiskerLength,
     paperNumber,
@@ -188,6 +188,7 @@ import Whisker from './whisker';
     whiskerPointCallback,
   } = {}) => {
     const whisker = new Whisker({
+      api: paper,
       direction,
       whiskerLength,
       paperNumber,
