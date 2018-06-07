@@ -34,6 +34,14 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
 
       return new AudioNode(`Program[${paperNumber}].AudioOutput`);
     })(),
+
+    getConnectedPapers: async () => {
+      const paperNumber = await workerContext.paper.get('number');
+
+      return send({
+        method: { name: 'getConnectedPapers', params: [paperNumber] },
+      });
+    },
   };
 
   async function newObject(constructorName, params) {
@@ -95,7 +103,7 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
   AudioNode.outputCount = 0;
   AudioNode.soundWhisker = null;
   AudioNode.getSoundWhisker = async () => {
-    const whisker = await workerContext.paper.get('whisker', { color: 'blue', direction: 'down' })
+    const whisker = await workerContext.paper.get('whisker', { color: 'blue', direction: 'down' });
     const currentPaperNumber = await workerContext.paper.get('number');
 
     whisker.on('paperAdded', ({ paperNumber }) => {

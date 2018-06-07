@@ -1,21 +1,26 @@
 import uniqueId from 'lodash/uniqueId';
-import isObject from 'lodash/isObject';
 import Tone from 'tone/';
 
 const objectsStore = {};
 
-function initProgram(programNumber) {
-  // Source Node
-  objectsStore[`Program[${programNumber}].AudioInput`] = {
-    programNumber,
-    object: new ThroughNode(),
-  };
+const connectionsByPaper = {};
 
-  // Output Node
-  objectsStore[`Program[${programNumber}].AudioOutput`] = {
+function initProgram(programNumber) {
+  connectionsByPaper[programNumber] = [];
+
+  createObject({
     programNumber,
-    object: new ThroughNode(),
-  };
+    constructorName: 'ThroughNode',
+    params: [],
+    objectId: `Program[${programNumber}].AudioInput`,
+  });
+
+  createObject({
+    programNumber,
+    constructorName: 'ThroughNode',
+    params: [],
+    objectId: `Program[${programNumber}].AudioOutput`,
+  });
 }
 
 function cleanupProgram(programNumber) {
@@ -27,6 +32,12 @@ function cleanupProgram(programNumber) {
     entry.object.dispose();
     delete objectsStore[objectId];
   });
+
+  delete connectionsByPaper[programNumber];
+
+  Object.entries(connectionsByPaper).forEach(([paperNumber, connectedPapers]) => {
+    connectionsByPaper[paperNumber] = connectedPapers.filter(number => number !== programNumber);
+  });
 }
 
 async function runCommand(command) {
@@ -37,7 +48,17 @@ async function runCommand(command) {
     if (method.name === 'new') {
       const [constructorName, ...params] = method.params;
 
-      return createObject(context.programNumber, constructorName, params);
+      return createObject({
+        programNumber: context.programNumber,
+        constructorName,
+        params,
+      });
+    }
+
+    // special case return connected papers
+    if (method.name === 'getConnectedPapers') {
+      const [paperNumber] = method.params;
+      return connectionsByPaper[paperNumber];
     }
 
     const entry = objectsStore[context.objectId];
@@ -68,15 +89,31 @@ class AudioNode {
   }
 
   connect(node) {
-    const other = objectsStore[node.id].object.__toneObj;
-    this.__toneObj.connect(other);
+    const other = objectsStore[node.id].object;
+    this.__toneObj.connect(other.__toneObj);
+
+    if (
+      this.__id.endsWith('AudioOutput') &&
+      other.__id.endsWith('AudioInput') &&
+      this.__programNumber !== other.__programNumber
+    ) {
+      connectionsByPaper[other.__programNumber].push(this.__programNumber);
+    }
   }
 
   disconnect(node) {
-    if (!isObject(node)) {
-      this.__toneObj.disconnect(node);
-    } else {
-      this.__toneObj.disconnect(objectsStore[node.id]);
+    const other = objectsStore[node.id].object;
+
+    this.__toneObj.disconnect(other.__toneObj);
+
+    if (
+      this.__id.endsWith('AudioOutput') &&
+      other.__id.endsWith('AudioInput') &&
+      this.__programNumber !== other.__programNumber
+    ) {
+      connectionsByPaper[other.__programNumber] = connectionsByPaper[other.__programNumber].filter(
+        number => number !== this.__programNumber
+      );
     }
   }
 
@@ -200,12 +237,21 @@ const constructors = {
   Waveform,
   FFT,
   Meter,
+
+  // Misc
+  ThroughNode,
 };
 
-function createObject(programNumber, constructorName, params) {
+function createObject({
+  programNumber,
+  constructorName,
+  objectId = uniqueId(`Tone.${constructorName}`),
+  params,
+}) {
   const constructor = constructors[constructorName];
-  const objectId = uniqueId(`Tone.${constructorName}`);
   const object = new constructor(...params);
+  object.__id = objectId;
+  object.__programNumber = programNumber;
 
   objectsStore[objectId] = { programNumber, object };
 
