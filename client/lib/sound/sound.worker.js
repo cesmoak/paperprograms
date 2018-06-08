@@ -20,6 +20,7 @@ export default function({ api, workerContext, getNextMessageId, messageCallbacks
     Microphone: async options => newObject('Microphone', [options]),
     PitchShift: async options => newObject('PitchShift', [options]),
     Waveform: async options => newObject('Waveform', [options]),
+    Volume: async options => newObject('Volume', [options]),
     FFT: async options => newObject('FFT', [options]),
     Meter: async options => newObject('Meter', [options]),
 

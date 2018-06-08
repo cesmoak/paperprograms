@@ -166,7 +166,7 @@ export default class Whisker extends EventEmitter {
         });
 
       case 'data': {
-        if (!this._pointAtData) {
+        if (!this._pointAtData || !this._pointAtData.paperNumber) {
           return {};
         }
 

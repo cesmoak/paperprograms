@@ -203,11 +203,11 @@ class Volume extends AudioNode {
   }
 
   getVolume() {
-    return this.__toneObj.volume;
+    return this.__toneObj.volume.getValue();
   }
 
   setVolume(value) {
-    this.__toneObj.volume = value;
+    this.__toneObj.volume.value = value;
   }
 }
 
