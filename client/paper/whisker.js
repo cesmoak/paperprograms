@@ -170,7 +170,7 @@ export default class Whisker extends EventEmitter {
           return {};
         }
 
-        return this._pointAtData.paper.data;
+        return (await this._api.get('papers'))[this._pointAtData.paperNumber].data;
       }
 
       default:

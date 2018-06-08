@@ -100,7 +100,10 @@ import sound from '../lib/sound/sound.worker';
       }
 
       return paper._get('canvas', data, callback).then(canvas => {
-        paperCanvasesById[id] = canvas;
+        if (canvas != null) {
+          paperCanvasesById[id] = canvas;
+        }
+
         return canvas;
       });
     });
@@ -207,6 +210,7 @@ import sound from '../lib/sound/sound.worker';
   };
 
   sound({
+    api: paper,
     workerContext,
     messageCallbacks,
     getNextMessageId: () => ++messageId,

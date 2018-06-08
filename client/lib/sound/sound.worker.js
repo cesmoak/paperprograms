@@ -1,4 +1,4 @@
-export default function({ workerContext, getNextMessageId, messageCallbacks }) {
+export default function({ api, workerContext, getNextMessageId, messageCallbacks }) {
   function send({ method, context }) {
     const messageId = getNextMessageId();
 
@@ -24,19 +24,19 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
     Meter: async options => newObject('Meter', [options]),
 
     input: (async () => {
-      const paperNumber = await workerContext.paper.get('number');
+      const paperNumber = await api.get('number');
 
       return new AudioNode(`Program[${paperNumber}].AudioInput`);
     })(),
 
     output: (async () => {
-      const paperNumber = await workerContext.paper.get('number');
+      const paperNumber = await api.get('number');
 
       return new AudioNode(`Program[${paperNumber}].AudioOutput`);
     })(),
 
     getConnectedPapers: async () => {
-      const paperNumber = await workerContext.paper.get('number');
+      const paperNumber = await api.get('number');
 
       return send({
         method: { name: 'getConnectedPapers', params: [paperNumber] },
@@ -103,8 +103,8 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
   AudioNode.outputCount = 0;
   AudioNode.soundWhisker = null;
   AudioNode.getSoundWhisker = async () => {
-    const whisker = await workerContext.paper.get('whisker', { color: 'blue', direction: 'down' });
-    const currentPaperNumber = await workerContext.paper.get('number');
+    const whisker = await api.get('whisker', { color: 'blue', direction: 'down' });
+    const currentPaperNumber = await api.get('number');
 
     whisker.on('paperAdded', ({ paperNumber }) => {
       send({
@@ -185,6 +185,20 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
     }
   }
 
+  class Volume extends AudioNode {
+    constructor(id) {
+      super(id);
+    }
+
+    get volume() {
+      return this.send('getVolume');
+    }
+
+    set volume(value) {
+      return this.send('setVolume', [value]);
+    }
+  }
+
   class DataNode extends AudioNode {
     constructor(id) {
       super(id);
@@ -221,6 +235,7 @@ export default function({ workerContext, getNextMessageId, messageCallbacks }) {
     Oscillator,
     Microphone,
     PitchShift,
+    Volume,
     Waveform,
     Meter,
     FFT,

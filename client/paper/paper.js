@@ -6,7 +6,7 @@ export default class Paper {
   }
 
   async get(command, options) {
-    const paper = await this._api.get('papers')[this._number];
+    const paper = (await this._api.get('papers'))[this._number];
 
     switch (command) {
       case 'number':
@@ -43,6 +43,6 @@ export default class Paper {
       throw new Error('You can only change the data of your own paper');
     }
 
-    await this._paper.set('data', data);
+    await this._api.set('data', data);
   }
 }

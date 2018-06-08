@@ -197,6 +197,20 @@ class PitchShift extends AudioNode {
   }
 }
 
+class Volume extends AudioNode {
+  constructor(options) {
+    super(new Tone.Volume(options));
+  }
+
+  getVolume() {
+    return this.__toneObj.volume;
+  }
+
+  setVolume(value) {
+    this.__toneObj.volume = value;
+  }
+}
+
 class DataNode extends AudioNode {
   getValue() {
     return this.__toneObj.getValue();
@@ -240,6 +254,7 @@ const constructors = {
 
   // Misc
   ThroughNode,
+  Volume,
 };
 
 function createObject({
