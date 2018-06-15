@@ -93,6 +93,7 @@ export default class Whisker extends EventEmitter {
 
     // render whisker with dot animation
     this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+    this._ctx.lineWidth = 2;
     this._ctx.fillStyle = this._ctx.strokeStyle = this.color;
     this._ctx.beginPath();
     this._ctx.moveTo(whiskerStart.x, whiskerStart.y);
@@ -107,7 +108,7 @@ export default class Whisker extends EventEmitter {
       this._ctx.arc(
         whiskerEnd.x * dotFraction + whiskerStart.x * (1 - dotFraction),
         whiskerEnd.y * dotFraction + whiskerStart.y * (1 - dotFraction),
-        2,
+        3,
         0,
         2 * Math.PI
       );

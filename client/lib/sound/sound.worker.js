@@ -104,7 +104,11 @@ export default function({ api, workerContext, getNextMessageId, messageCallbacks
   AudioNode.outputCount = 0;
   AudioNode.soundWhisker = null;
   AudioNode.getSoundWhisker = async () => {
-    const whisker = await api.get('whisker', { color: 'blue', direction: 'down' });
+    const whisker = await api.get('whisker', {
+      color: 'blue',
+      direction: 'right',
+      requiredData: ['isSound'],
+    });
     const currentPaperNumber = await api.get('number');
 
     whisker.on('paperAdded', ({ paperNumber }) => {
