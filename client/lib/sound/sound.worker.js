@@ -105,6 +105,7 @@ export default function({ api, workerContext, getNextMessageId, messageCallbacks
   AudioNode.soundWhisker = null;
   AudioNode.getSoundWhisker = async () => {
     const whisker = await api.get('whisker', {
+      whiskerLength: 0.4,
       color: 'blue',
       direction: 'right',
       requiredData: ['isSound'],

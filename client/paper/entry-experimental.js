@@ -15,14 +15,17 @@ import Paper from './paper';
           return new Paper({ number, api: paper, isOwnPaper: true });
         }
 
+        case 'globalState': {
+          return paper.get('papers');
+        }
+
         case 'papers': {
           const papers = await paper.get('papers');
           return Object.keys(papers).map(number => new Paper({ number, api: paper }));
         }
 
         case 'markers': {
-          const markers = await paper.get('markers');
-          return markers;
+          return paper.get('markers');
         }
 
         default:
