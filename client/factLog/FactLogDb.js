@@ -3,20 +3,24 @@ const factLog = require('./factLogAst');
 function FactLogDb() {
   this._claims = {};
   this._indexes = {};
+  this._missingClaimsMatchesByName = {};
+  this._missingClaimsToCaptureByName = {};
 }
 
 FactLogDb.prototype = {
-  addClaim({ name, args }) {
-    const invalidArgs = args.filter(arg => !factLog.isConstant(arg));
+  addClaim(claim) {
+    const invalidArgs = claim.args.filter(arg => !factLog.isConstant(arg));
 
     if (invalidArgs.length > 0) {
       // eslint-disable-next-line no-console
       console.warn(
-        `skip claim "${name}" because it contains ${invalidArgs.length} invalid arg(s):`,
+        `skip claim "${claim.name}" because it contains ${invalidArgs.length} invalid arg(s):`,
         invalidArgs
       );
       return;
     }
+
+    const { name, args } = claim;
 
     if (!this._claims[name]) {
       this._claims[name] = [];
@@ -48,6 +52,52 @@ FactLogDb.prototype = {
     this._claims[name].push(args);
   },
 
+  _addMissingClaim({ claim, context }) {
+    const capturingClaim = this._missingClaimsToCaptureByName[claim.name];
+
+    if (!capturingClaim) {
+      return;
+    }
+
+    const args = claim.args.slice();
+
+    const match = {};
+
+    // resolve args and check if claim matches capturing claim
+    for (let ai = 0; ai < args.length; ai++) {
+      let arg = args[ai];
+      let capturingArg = capturingClaim.args[ai];
+
+      if (factLog.isVariable(arg) && context[arg.name]) {
+        arg = context[arg.name];
+      }
+
+      // skip ...
+      if (
+        // ... variables aligned with constants or known variables
+        (factLog.isVariable(arg) &&
+          (factLog.isConstant(capturingArg) || !capturingArg.name.startsWith('?'))) ||
+        //
+        // ... constants aligned with non equal constants or unknown variables
+        (!factLog.isVariable(arg) &&
+          ((factLog.isConstant(capturingArg) && capturingArg.value !== arg.value) ||
+            capturingArg.name.startsWith('?')))
+      ) {
+        return;
+      }
+
+      if (factLog.isConstant(arg)) {
+        match[capturingArg.name] = arg.value;
+      }
+    }
+
+    if (!this._missingClaimsMatchesByName[claim.name]) {
+      this._missingClaimsMatchesByName[claim.name] = [];
+    }
+
+    this._missingClaimsMatchesByName[claim.name].push(match);
+  },
+
   query(claims) {
     let matches = [{}];
 
@@ -58,7 +108,11 @@ FactLogDb.prototype = {
 
       for (let mi = 0; mi < matches.length; mi++) {
         const context = matches[mi];
-        const newMatches = this._findMatchesForClaim(claim, context);
+        const newMatches = this._findMatchesForClaim({ claim, context });
+
+        if (newMatches.length === 0) {
+          this._addMissingClaim({ claim, context });
+        }
 
         joinedMatches = joinedMatches.concat(newMatches);
       }
@@ -73,7 +127,7 @@ FactLogDb.prototype = {
     return matches;
   },
 
-  _findMatchesForClaim(claim, context = {}) {
+  _findMatchesForClaim({ claim, context = {} }) {
     const name = claim.name;
     const args = claim.args.slice(); // clone args because they will be mutated
 
@@ -167,6 +221,14 @@ FactLogDb.prototype = {
     }
 
     return claimsToMatches(matchingClaims, varArgs, context);
+  },
+
+  captureMissingClaims(claim) {
+    this._missingClaimsToCaptureByName[claim.name] = claim;
+  },
+
+  getMissingClaimsMatchesByName(claimName) {
+    return this._missingClaimsMatchesByName[claimName] || [];
   },
 };
 

@@ -72,3 +72,69 @@ test('non primitive constants', t => {
   t.deepEqual(result, []);
   t.end();
 });
+
+test('capture missing claims', t => {
+  const db = getFamilyDb();
+
+  const captureClaim = ast.claim({
+    name: '@ has @ kids',
+    args: [ast.variable('person'), ast.variable('?n')],
+  });
+
+  db.captureMissingClaims(captureClaim);
+
+  db.query([
+    ast.claim({
+      name: '@ has @ kids',
+      args: [ast.constant('Homer'), ast.variable('count')],
+    }),
+  ]);
+
+  const result = db.getMissingClaimsMatchesByName('@ has @ kids');
+  t.deepEqual(result, [{ person: 'Homer' }]);
+  t.end();
+});
+
+test('skipping missing claims non matching constant', t => {
+  const db = getFamilyDb();
+
+  const captureClaim = ast.claim({
+    name: '@ has @ kids',
+    args: [ast.constant('Homer'), ast.variable('?n')],
+  });
+
+  db.captureMissingClaims(captureClaim);
+
+  db.query([
+    ast.claim({
+      name: '@ has @ kids',
+      args: [ast.constant('Abe'), ast.variable('count')],
+    }),
+  ]);
+
+  const result = db.getMissingClaimsMatchesByName('@ has @ kids');
+  t.deepEqual(result, []);
+  t.end();
+});
+
+test('skipping missing claims non matching variable', t => {
+  const db = getFamilyDb();
+
+  const captureClaim = ast.claim({
+    name: '@ has @ kids',
+    args: [ast.variable('person'), ast.variable('?n')],
+  });
+
+  db.captureMissingClaims(captureClaim);
+
+  db.query([
+    ast.claim({
+      name: '@ has @ kids',
+      args: [ast.variable('person'), ast.constant(2)],
+    }),
+  ]);
+
+  const result = db.getMissingClaimsMatchesByName('@ has @ kids');
+  t.deepEqual(result, []);
+  t.end();
+});
