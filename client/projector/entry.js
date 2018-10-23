@@ -164,6 +164,9 @@ function updatePrograms(programsToRun) {
   state.whens = whens.filter(({ source }) => !programsToClearByNumber[source]);
   state.claims = claims.filter(({ source }) => !programsToClearByNumber[source]);
   state.errors = errors.filter(({ source }) => !programsToClearByNumber[source]);
+  state.logs = logs.filter(({ source }) => !programsToClearByNumber[source]);
+  state.matches = matches.filter(({ source }) => !programsToClearByNumber[source]);
+
   state.runningProgramsByNumber = nextRunningProgramsByNumber;
 }
 
