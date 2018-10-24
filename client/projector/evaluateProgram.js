@@ -14,6 +14,7 @@ export default async function evaluateProgram() {
     isDynamic: false,
     groupMatches: true,
   });
+  let ToKnowWhen = this.getToKnowWhenTagFunction({ source: you, isDynamic: false });
   let log = this.getLogFunction({ source: you, isDynamic: false });
   /* eslint-enable no-unused-vars*/
 
@@ -54,5 +55,6 @@ export default async function evaluateProgram() {
     isDynamic: true,
     groupMatches: true,
   });
+  ToKnowWhen = this.getToKnowWhenTagFunction({ source: you, isDynamic: false });
   log = this.getLogFunction({ source: you, isDynamic: true });
 }

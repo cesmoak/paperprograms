@@ -11,6 +11,7 @@ const state = (window.$state = {
   runningProgramsByNumber: {},
   claims: [],
   whens: [],
+  toKnowWhens: [],
   errors: [],
   matches: [],
   logs: [],
@@ -33,14 +34,16 @@ function getGhostPage(name, fn) {
 
 function reportError({ source, isDynamic, error }) {
   const stackFrame = errorStackParser.parse(error);
+  const myFrame =
+    stackFrame.find(({ fileName }) => fileName.endsWith(`${source}.js`)) || stackFrame[0];
 
   state.errors.push({
     source,
     isDynamic,
     message: error.message,
-    isInFile: stackFrame[0].fileName.endsWith(`${source}.js`),
-    lineNumber: stackFrame[0].lineNumber,
-    columnNumber: stackFrame[0].columnNumber,
+    isInFile: myFrame.fileName.endsWith(`${source}.js`),
+    lineNumber: myFrame.lineNumber,
+    columnNumber: myFrame.columnNumber,
   });
 }
 
@@ -64,6 +67,14 @@ function reportErrorMessage({
 
 const programHelperFunctions = {
   getClaimTagFunction: ({ source, isDynamic }) => (literals, ...params) => {
+    const undefinedArgIndex = params.findIndex(v => v === undefined);
+
+    if (undefinedArgIndex !== -1) {
+      throw new Error(
+        `Claim can't contain 'undefined' values: argument ${undefinedArgIndex + 1} is undefined`
+      );
+    }
+
     const claim = parser.parseClaim({ literals, params, source, isDynamic });
     state.claims.push(claim);
   },
@@ -87,6 +98,26 @@ const programHelperFunctions = {
       }
 
       state.whens.push(when);
+    };
+  },
+
+  getToKnowWhenTagFunction: ({ source, isDynamic }) => (literals, ...params) => {
+    const stackFrame = errorStackParser.parse(new Error());
+    const originalCall = stackFrame.find(({ fileName }) => fileName.endsWith(`${source}.js`));
+    const claims = parser.parseWhenClaims({ literals, params });
+
+    if (claims.length > 1) {
+      throw new Error("ToKnowWhen can't contain multiple claimns");
+    }
+
+    return callback => {
+      const toKnowWhen = ast.toKnowWhen({ claim: claims[0], callback, isDynamic, source });
+
+      if (originalCall) {
+        toKnowWhen.lineNumber = originalCall.lineNumber;
+      }
+
+      state.toKnowWhens.push(toKnowWhen);
     };
   },
 
@@ -121,11 +152,13 @@ main();
 function getProgramsToRun() {
   const programs = JSON.parse(localStorage.paperProgramsProgramsToRender || '[]');
 
-  return ghostPages.concat(programs);
+  return programs;
+
+  //return ghostPages.concat(programs);
 }
 
 function updatePrograms(programsToRun) {
-  const { runningProgramsByNumber, claims, whens, errors } = state;
+  const { runningProgramsByNumber, claims, whens, errors, logs, matches } = state;
 
   const programsToRunByNumber = {};
   const programsToClearByNumber = {};
@@ -222,33 +255,119 @@ function evaluateClaimsAndWhens() {
 
   // custom claims
 
-  // reset dynamic claims, whens and errors
+  // reset match count
+  state.whens.forEach(when => {
+    when.count = 0;
+  });
 
-  const currentWhens = state.whens.slice();
+  state.toKnowWhens.forEach(toKnowWhen => {
+    toKnowWhen.count = 0;
+  });
+
+  const allWhens = state.whens.slice();
+  let currentWhens = allWhens;
+  const allToKnowWhens = state.toKnowWhens.slice();
+
+  // reset dynamic claims, whens, errors, matches, logs and toKnowWhens
   state.whens = state.whens.filter(({ isDynamic }) => !isDynamic);
   state.claims = state.claims.filter(({ isDynamic }) => !isDynamic);
   state.errors = state.errors.filter(({ isDynamic }) => !isDynamic);
   state.logs = state.logs.filter(({ isDynamic }) => !isDynamic);
+  state.toKnowWhens = state.toKnowWhens.filter(({ isDynamic }) => !isDynamic);
   state.matches = [];
 
-  // evaluate whens
+  // register to know whens
 
-  currentWhens.forEach(({ source, claims, callback, groupMatches, lineNumber }) => {
-    const matches = db.query(claims);
+  allToKnowWhens.forEach(({ claim }) => {
+    db.captureMissingClaims(claim);
+  });
 
-    if (lineNumber !== undefined) {
-      state.matches.push({ source, count: matches.length, lineNumber });
-    }
+  let hasSettled;
 
-    try {
-      if (groupMatches) {
-        callback(matches);
+  do {
+    hasSettled = true;
+
+    // evaluate whens
+    currentWhens = currentWhens.filter(currentWhen => {
+      const { source, claims, callback, groupMatches } = currentWhen;
+      const matches = db.query(claims);
+
+      if (matches.length === 0) {
+        return true;
+      }
+
+      currentWhen.count += matches.length;
+
+      try {
+        if (groupMatches) {
+          callback(matches);
+          return false;
+        }
+
+        matches.forEach(match => callback(match));
+      } catch (error) {
+        reportError({ source, isDynamic: true, error });
+        return false;
+      }
+    });
+
+    // evaluate to know whens
+    allToKnowWhens.forEach(currentToKnowWhen => {
+      const { claim, callback, source } = currentToKnowWhen;
+      const matches = db.getMissingClaimsMatchesByName(claim.name);
+
+      if (matches.length === 0) {
         return;
       }
 
-      matches.forEach(match => callback(match));
-    } catch (error) {
-      reportError({ source, isDynamic: true, error });
+      currentToKnowWhen.count += matches.length;
+
+      try {
+        const claimsOffset = state.claims.length;
+        const whensOffset = state.whens.length;
+
+        matches.forEach(match => callback(match));
+
+        if (claimsOffset === state.claims.length && whensOffset === state.whens.length) {
+          return;
+        }
+
+        console.log(claimsOffset === state.claims.length, whensOffset === state.whens.length);
+
+        debugger;
+
+        hasSettled = false;
+
+        for (let i = claimsOffset; i < state.claims.length; i++) {
+          db.addClaim(state.claims[i]);
+        }
+
+      } catch (error) {
+        debugger;
+        reportError({ source, isDynamic: true, error });
+      }
+    });
+  } while (!hasSettled);
+
+  // push final matches
+
+  allWhens.forEach(({ groupMatches, lineNumber, source, callback, count }) => {
+    if (lineNumber !== undefined) {
+      state.matches.push({ source, count, lineNumber });
+    }
+
+    if (groupMatches && count === 0) {
+      try {
+        callback([]);
+      } catch (error) {
+        reportError({ source, isDynamic: true, error });
+      }
+    }
+  });
+
+  allToKnowWhens.forEach(({ lineNumber, source, count }) => {
+    if (lineNumber !== undefined) {
+      state.matches.push({ source, count, lineNumber });
     }
   });
 }
@@ -267,6 +386,4 @@ setInterval(() => {
 
       xhr.put(program.debugUrl, { json: debugData }, () => {});
     });
-
-
 }, 300);

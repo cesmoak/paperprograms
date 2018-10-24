@@ -2,6 +2,7 @@ const CONSTANT_ARG = 'FACT_LOG_CONSTANT_ARG';
 const VARIABLE_ARG = 'FACT_LOG_VARIABLE_ARG';
 const CLAIM = 'FACT_LOG_CLAIM';
 const WHEN = 'FACT_LOG_WHEN';
+const TO_KNOW_WHEN = 'FACT_LOG_TO_KNOW_WHEN';
 
 function constant(value) {
   return { type: CONSTANT_ARG, value };
@@ -21,6 +22,16 @@ function constantClaim({ name, args, source = null, isDynamic = true }) {
 
 function when({ claims, callback, source = null, isDynamic = true, groupMatches = false }) {
   return { type: WHEN, claims, callback, source, isDynamic, groupMatches };
+}
+
+function toKnowWhen(params) {
+  return {
+    type: TO_KNOW_WHEN,
+    claim: params.claim,
+    callback: params.callback,
+    source: params.source,
+    isDynamic: params.isDynamic,
+  };
 }
 
 function isConstant(obj) {
@@ -45,6 +56,7 @@ module.exports = {
   claim,
   constantClaim,
   when,
+  toKnowWhen,
   isConstant,
   isVariable,
   isClaim,

@@ -69,7 +69,7 @@ FactLogDb.prototype = {
       let capturingArg = capturingClaim.args[ai];
 
       if (factLog.isVariable(arg) && context[arg.name]) {
-        arg = context[arg.name];
+        arg = factLog.constant(context[arg.name]);
       }
 
       // skip ...
@@ -228,7 +228,9 @@ FactLogDb.prototype = {
   },
 
   getMissingClaimsMatchesByName(claimName) {
-    return this._missingClaimsMatchesByName[claimName] || [];
+    const result = this._missingClaimsMatchesByName[claimName] || [];
+    this._missingClaimsMatchesByName[claimName] = [];
+    return result;
   },
 };
 

@@ -175,6 +175,10 @@ export default class EditorMain extends React.Component {
             <div className={styles.editorColor} style={{ background: this._editorColor() }} />
           </div>
 
+          <pre className={styles.sidebarSection}>
+            {JSON.stringify({ errors, matches, logs }, null, 2)}
+          </pre>
+
           <div className={styles.sidebarSection}>
             <select
               value={this.state.selectedProgramNumber}
