@@ -167,15 +167,14 @@ export default function simpleBlobDetector(image, params) {
   scaledImage.delete();
 
   let centers = [];
+  const binaryImage = new cv.Mat(scaledSize, cv.CV_8UC1);
   for (
     let thresh = params.minThreshold;
     thresh < params.maxThreshold;
     thresh += params.thresholdStep
   ) {
-    const binaryImage = new cv.Mat(scaledSize, cv.CV_8UC1);
     cv.threshold(grayScaleImage, binaryImage, thresh, 255, cv.THRESH_BINARY);
     let curCenters = findBlobs(binaryImage, params);
-    binaryImage.delete();
 
     let newCenters = [];
     for (let i = 0; i < curCenters.length; i++) {
@@ -208,6 +207,7 @@ export default function simpleBlobDetector(image, params) {
     }
     centers = centers.concat(newCenters);
   }
+  binaryImage.delete();
 
   grayScaleImage.delete();
 

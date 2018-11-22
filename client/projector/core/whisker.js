@@ -1,41 +1,64 @@
 /*globals WithAll, When, Claim, Wish */
 
 module.exports = function() {
+  const { forwardProjectionMatrixForPoints, mult, projectPoint } = require('../../utils');
+
+  function unprojectPoint(point, points, paperWidth, paperHeight) {
+    const matrix = forwardProjectionMatrixForPoints(Object.values(points)).adjugate();
+    return mult(projectPoint(point, matrix), { x: paperWidth, y: paperHeight });
+  }
+
+  const defaultWhiskerPriority = 500;
+  const defaultWhiskerLength = 200;
+
   When` {supporter} is a ${'supporter'}`(({ supporter }) => {
-    Wish`${supporter} has canvas with name ${'whiskerCanvas'}`;
+    Wish`${supporter} has canvas with name ${'whiskerCanvas'} and priority ${defaultWhiskerPriority}`;
   });
 
   When` {supporter} is a ${'supporter'},
         {supporter} has canvas {canvas} with name ${'whiskerCanvas'}`(data => {
     const { supporter, canvas } = data;
 
-    WithAll` {someone} wishes {whiskerPaper} has whisker that points {direction},
+    WithAll` {someone} wishes {whiskerPaper} has whisker that points {direction}`(matches => {
+      matches.forEach(({ whiskerPaper, direction }) => {
+        Wish` ${whiskerPaper} has whisker that points ${direction} with length ${defaultWhiskerLength}`;
+      });
+    });
+
+    const directionLookup = {
+      up: ['topLeft', 'topRight'],
+      right: ['topRight', 'bottomRight'],
+      down: ['bottomRight', 'bottomLeft'],
+      left: ['bottomLeft', 'topLeft']
+    };
+
+    WithAll` {someone} wishes {whiskerPaper} has whisker that points {direction} with length {length},
              {whiskerPaper} is on supporter ${supporter},
              {whiskerPaper} has corner points {points}`(matches => {
       const ctx = canvas.getContext('2d');
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      matches.forEach(({ points, direction, whiskerPaper }) => {
+      matches.forEach(({ points, direction, whiskerPaper, length }) => {
         ctx.strokeStyle = 'rgba(255, 0, 0)';
-        const { topLeft, topRight, bottomLeft, bottomRight } = points;
 
-        const { whiskerStart, whiskerEnd } =
-          direction === 'up'
-            ? drawWhisker(topLeft, topRight, ctx)
-            : direction === 'right'
-              ? drawWhisker(topRight, bottomRight, ctx)
-              : direction === 'down'
-                ? drawWhisker(bottomRight, bottomLeft, ctx)
-                : direction === 'left' ? drawWhisker(bottomLeft, topLeft, ctx) : {};
+        const pointNames = directionLookup[direction];
+        if (!pointNames) return;
+        const from = points[pointNames[0]];
+        const to = points[pointNames[1]];
+        const { whiskerStart, whiskerEnd } = drawWhisker(from, to, length, ctx);
 
         WithAll` {paper} has corner points {paperPoints},
+                 {paper} has width {paperWidth},
+                 {paper} has height {paperHeight},
                  {paper} is a ${'program'}`(paperMatches => {
-          paperMatches.forEach(({ paper, paperPoints }) => {
+          paperMatches.forEach(({ paper, paperPoints, paperWidth, paperHeight }) => {
             if (paper === whiskerPaper) {
               return;
             }
             if (intersectsPaper(whiskerStart, whiskerEnd, paperPoints)) {
               Claim`${whiskerPaper} points at ${paper}`;
+              const paperPoint = unprojectPoint(whiskerEnd, paperPoints, paperWidth, paperHeight);
+              Claim`${whiskerPaper} points at ${paper} ending at point ${paperPoint}`;
             }
           });
         });
@@ -45,16 +68,17 @@ module.exports = function() {
 
   /* helper functions */
 
-  function drawWhisker(p1, p2, ctx) {
+  function drawWhisker(p1, p2, whiskerLength, ctx) {
     const { x: x1, y: y1 } = p1;
     const { x: x2, y: y2 } = p2;
     const whiskerStart = {
       x: (x1 + x2) / 2,
       y: (y1 + y2) / 2,
     };
+    const length = Math.sqrt((y2 - y1) ** 2 + (x2 - x1) ** 2);
     const whiskerEnd = {
-      x: whiskerStart.x + (y2 - y1) / 4 * 2,
-      y: whiskerStart.y - (x2 - x1) / 4 * 2,
+      x: whiskerStart.x + (y2 - y1) / length * whiskerLength,
+      y: whiskerStart.y - (x2 - x1) / length * whiskerLength,
     };
     ctx.beginPath();
     ctx.moveTo(whiskerStart.x, whiskerStart.y);

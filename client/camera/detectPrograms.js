@@ -3,6 +3,7 @@
 import colorDiff from 'color-diff';
 import sortBy from 'lodash/sortBy';
 import partition from 'lodash/partition';
+import { filterNoise } from './keyPointNoiseFilter';
 
 import {
   add,
@@ -160,6 +161,9 @@ function colorIndexesForShape(shape, keyPoints, videoMat, colorsRGB, scaleFactor
   return shapeColors.map(color => colorIndexForColor(color, closestColors));
 }
 
+// All key points found in the previous frame
+const lastFrameKeyPoints = [];
+
 export default function detectPrograms({
   config,
   videoCapture,
@@ -227,6 +231,8 @@ export default function detectPrograms({
     keyPoint.colorIndex =
       keyPoint.colorIndex || colorIndexForColor(keyPoint.avgColor, config.colorsRGB);
   });
+
+  allPoints = filterNoise(lastFrameKeyPoints, allPoints);
 
   let [markers, keyPoints] = allBlobsAreKeyPoints
     ? [[], allPoints]

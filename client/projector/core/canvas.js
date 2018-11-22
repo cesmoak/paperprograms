@@ -3,14 +3,27 @@
 module.exports = function() {
   const { getCssTransform } = require('../positioning');
 
-  When` {someone} wishes {paper} has canvas with name {canvasName},
+  const defaultPriority = 100;
+
+  // Limit canvas size so we don't create excessively large canvases that crash the browser tab when corners are incorrectly recognized
+  const maxWidth = 1920;
+  const maxHeight = 1080;
+
+  WithAll` {someone} wishes {object} has canvas with name {canvasName} `(matches => {
+    matches.forEach(({ object, canvasName }) => {
+      Wish` ${object} has canvas with name ${canvasName} and priority ${defaultPriority}`;
+    });
+  });
+
+  When` {someone} wishes {paper} has canvas with name {canvasName} and priority {priority},
         {paper} has corner points {points},
         {paper} has width {paperWidth},
         {paper} has height {paperHeight}`(
-    ({ paper, paperWidth, paperHeight, points, canvasName }) => {
+    ({ paper, paperWidth, paperHeight, points, canvasName, priority }) => {
       const canvas = getCanvasElement(paper, canvasName);
-      canvas.width = paperWidth;
-      canvas.height = paperHeight;
+      canvas.style.zIndex = priority;
+      canvas.width = Math.floor(Math.min(paperWidth, maxWidth));
+      canvas.height = Math.floor(Math.min(paperHeight, maxHeight));
       canvas.style.transform = getCssTransform({
         points,
         paperHeight,
@@ -21,7 +34,7 @@ module.exports = function() {
     }
   );
 
-  WithAll` {someone} wishes {object} has canvas with name {canvasName} `(matches => {
+  WithAll` {someone} wishes {object} has canvas with name {canvasName} and priority {priority}`(matches => {
     const activeCanvasElements = {};
     matches.forEach(({ object, canvasName }) => {
       activeCanvasElements[`${object}[${canvasName}]`] = true;
