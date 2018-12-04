@@ -30,6 +30,14 @@ export function cross(v1, v2) {
   return v1.x * v2.y - v1.y * v2.x;
 }
 
+export function negate({ x, y }) {
+  return { x: -x, y: -y };
+}
+
+export function distance(a, b) {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+}
+
 export function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -79,6 +87,10 @@ export function projectPoint(point, projectionMatrix) {
   };
 }
 
+export function projectPoints(points, matrix) {
+  return points.map(point => projectPoint(point, matrix));
+}
+
 export function getApiUrl(spaceName, suffix) {
   return new URL(`api/spaces/${spaceName}${suffix}`, window.location.origin).toString();
 }
@@ -99,4 +111,40 @@ export function codeToPrint(code) {
     if (!lines[i].match(commentRegex) && lines[i].trim().length !== 0) break;
   }
   return lines.slice(i).join('\n');
+}
+
+export function cornerPointsArray(width, height) {
+  return [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height },
+  ];
+}
+
+export function cornerPointsFromArray(points) {
+  return {
+    topLeft: points[0],
+    topRight: points[1],
+    bottomRight: points[2],
+    bottomLeft: points[3],
+  };
+}
+
+export function cmToInches({ x, y }) {
+  return {
+    x: x / 2.54,
+    y: y / 2.54,
+  };
+}
+
+function averageNumbers(...numbers) {
+  return numbers.reduce((curr, acc) => curr + acc, 0) / numbers.length;
+}
+
+export function averageDimensions({ topLeft, topRight, bottomRight, bottomLeft }) {
+  return {
+    x: averageNumbers(distance(topLeft, topRight), distance(bottomLeft, bottomRight)),
+    y: averageNumbers(distance(topRight, bottomRight), distance(topLeft, bottomLeft)),
+  };
 }

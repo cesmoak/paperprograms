@@ -1,16 +1,39 @@
 /*globals Wish, When, WithAll */
 
 module.exports = function() {
-  When` {someone} wishes {paper} has illumination {ill} `(({ paper }) => {
-    Wish`${paper} has canvas with name ${'illumination'}`;
+  WithAll` {someone} wishes {paper} has illumination {ill}`(matches => {
+    WithAll` {someone} wishes {paper} has illumination {ill} in cm`(matchesCm => {
+      WithAll` {someone} wishes {paper} has illumination {ill} in inches`(matchesInches => {
+        const allMatches = [ ...matches, ...matchesCm, ...matchesInches ];
+        const papers = new Set(allMatches.map(match => match.paper));
+        papers.forEach(paper => {
+          Wish`${paper} has canvas with name ${'illumination'}`;
+        });
+      });
+    });
   });
 
   When` {paper} has canvas {canvas} with name ${'illumination'}`(({ paper, canvas }) => {
-    WithAll`{someone} wishes ${paper} has illumination {ill}`(matches => {
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      matches.forEach(({ ill }) => {
-        ill.draw(ctx);
+    WithAll` {someone} wishes ${paper} has illumination {ill}`(pixelMatches => {
+      WithAll` {someone} wishes ${paper} has illumination {ill} in cm,
+               ${paper} has {pixelsPerCm} pixels per cm`(cmMatches => {
+        WithAll` {someone} wishes ${paper} has illumination {ill} in inches,
+                 ${paper} has {pixelsPerInch} pixels per inch`(inchMatches => {
+          if (pixelMatches.length > 0 || cmMatches.length > 0 || inchMatches.length > 0) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+            pixelMatches.forEach(({ ill }) => {
+              ill.draw(ctx, {x: 1, y: 1});
+            });
+            cmMatches.forEach(({ ill, pixelsPerCm }) => {
+              ill.draw(ctx, pixelsPerCm);
+            });
+            inchMatches.forEach(({ ill, pixelsPerInch }) => {
+              ill.draw(ctx, pixelsPerInch);
+            });
+          }
+        });
       });
     });
   });
@@ -87,6 +110,7 @@ const polygon = ({ points, stroke, fill }) => ({
   stroke,
   fill,
   render(ctx) {
+    ctx.save();
     ctx.beginPath();
     points.forEach(({ x, y }) => {
       ctx.lineTo(x, y);
@@ -125,28 +149,32 @@ const lineStyle = (width, cap, join) => ({
   },
 });
 
-const text = ({ x, y, text, fill, size, fit = false }) => ({
+const text = ({ x, y, text, fill, size, fit = false, wrap = false }) => ({
   x,
   y,
   text,
   fill,
   size,
   fit,
+  wrap,
   render(ctx) {
     ctx.save();
     ctx.font = `${this.size}px sans-serif`;
     if (this.fill) ctx.fillStyle = this.fill;
+    this.text = this.text.toString();
+
+    // In units of CSS pixels
+    const maxWidth = ctx.canvas.clientWidth;
+    let lines = this.text.split("\n");
     if (this.fit) {
-      const width = ctx.canvas.clientWidth;
-      let textWidth = ctx.measureText(this.text).width;
-      while (textWidth > width - 2) {
-        this.size--;
-        ctx.font = `${this.size}px sans-serif`;
-        textWidth = ctx.measureText(this.text).width;
-      }
+      fitText(ctx, lines, this.x, this.y, maxWidth, this.size);
     }
-    ctx.fillText(this.text, this.x, this.y);
-    ctx.restore;
+    else if (this.wrap) {
+      lines = wrapText(ctx, lines, this.x, this.y, maxWidth, this.size);
+    }
+
+    drawText(ctx, lines, this.x, this.y, this.size);
+    ctx.restore();
   },
 });
 
@@ -179,12 +207,56 @@ window.Shapes = {
 window.Illumination = function(...args) {
   this.shapes = args;
 
-  this.draw = ctx => {
+  this.draw = (ctx, scale) => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = 'crimson';
     ctx.strokeStyle = 'crimson';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 / scale.x;
+    ctx.scale(scale.x, scale.y);
     this.shapes.forEach(shape => {
       shape.render(ctx);
     });
   };
 };
+
+function drawText(ctx, lines, x, y, lineHeight) {
+  lines.forEach(line => {
+    ctx.fillText(line, x, y);
+    y += lineHeight;
+  });
+}
+
+function fitText(ctx, lines, x, y, maxWidth, size) {
+  lines.forEach(line => {
+    let textWidth = ctx.measureText(line).width;
+    while (textWidth > maxWidth - 2) {
+      size--;
+      ctx.font = `${size}px sans-serif`;
+      textWidth = ctx.measureText(line).width;
+    }
+  });
+}
+
+// http: //www.html5canvastutorials.com/tutorials/html5-canvas-wrap-text-tutorial/
+function wrapText(ctx, lines, x, y, maxWidth, size) {
+  const linesOut = [];
+  for (let i = 0; i < lines.length; i++) {
+    let line = '';
+    const words = lines[i].split(' ');
+    for (let n = 0; n < words.length; n++) {
+      const testLine = line + words[n] + ' ';
+      const metrics = ctx.measureText(testLine);
+      const testWidth = metrics.width;
+
+      if (testWidth > maxWidth) {
+        linesOut.push(line);
+        line = words[n] + ' ';
+      }
+      else {
+        line = testLine;
+      }
+    }
+    linesOut.push(line);
+  }
+  return linesOut;
+}

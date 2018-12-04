@@ -229,24 +229,7 @@ export default class CameraMain extends React.Component {
                     this.props.onConfigChange({ ...this.props.config, paperSize });
                   }}
                 >
-                  <optgroup label="Common">
-                    {commonPaperSizeNames.map(name => {
-                      return (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      );
-                    })}
-                  </optgroup>
-                  <optgroup label="Other">
-                    {otherPaperSizeNames.map(name => {
-                      return (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      );
-                    })}
-                  </optgroup>
+                  {this.paperSizeOptions()}
                 </select>
               </div>
               <div className={styles.sidebarSubSection}>
@@ -497,6 +480,9 @@ export default class CameraMain extends React.Component {
                 alignment helper
               </div>
             </div>
+
+            {this.realWorldUnitsCalibrationOptions()}
+
             <div className={styles.sidebarSection}>
               <h3 className={styles.sidebarSubSection}>Space</h3>
               {!this.state.isEditingSpaceUrl ? (
@@ -539,5 +525,115 @@ export default class CameraMain extends React.Component {
         </div>
       </div>
     );
+  }
+
+  realWorldUnitsCalibrationOptions() {
+    return (
+      <div className={styles.sidebarSection}>
+        <h3>Real-World Units Calibration (cm/in)</h3>
+
+        <div className={styles.sidebarSubSection}>
+          <input
+            type="checkbox"
+            checked={this.props.config.updateRealWorldUnits}
+            onChange={() =>
+              this.props.onConfigChange({
+                ...this.props.config,
+                updateRealWorldUnits: !this.props.config.updateRealWorldUnits,
+              })
+            }
+          />
+          <span> Update calibration</span>
+        </div>
+
+        <div className={styles.sidebarSubSection}>
+          <span>Measure projection warp using paper #: </span>
+          <input
+            value={this.props.config.realWorldUnitsCalibrationPaperNumber}
+            onChange={event => this.props.onConfigChange({ 
+              ...this.props.config,
+              realWorldUnitsCalibrationPaperNumber: event.target.value
+            })}
+          />
+        </div>
+
+        <div className={styles.sidebarSubSection}>
+          <span>Paper size: </span>
+          <select
+            value={this.props.config.realWorldUnitsCalibrationPaperSize}
+            onChange={event => this.props.onConfigChange({
+              ...this.props.config,
+              realWorldUnitsCalibrationPaperSize: event.target.value
+            })}
+          >
+            {this.paperSizeOptions()}
+          </select>
+        </div>
+
+        <div className={styles.sidebarSubSection}>
+          <div>Print size adjustments: </div>
+          <span>X = {this.props.config.realWorldUnitsCalibrationXSizeAdjustment}% </span>
+          <span> 50%</span>
+          <input
+            name="xPageSizing"
+            type="range"
+            min="50"
+            max="150"
+            step="1"
+            value={this.props.config.realWorldUnitsCalibrationXSizeAdjustment}
+            onChange={event => {
+              this.props.onConfigChange({
+                ...this.props.config,
+                realWorldUnitsCalibrationXSizeAdjustment: event.target.valueAsNumber,
+              });
+            }}
+          />
+          <span>150%</span>
+        </div>
+
+        <div className={styles.sidebarSubSection}>
+        <span>Y = {this.props.config.realWorldUnitsCalibrationYSizeAdjustment}% </span>
+          <span> 50%</span>
+          <input
+            name="yPageSizing"
+            type="range"
+            min="50"
+            max="150"
+            step="1"
+            value={this.props.config.realWorldUnitsCalibrationYSizeAdjustment}
+            onChange={event => {
+              this.props.onConfigChange({
+                ...this.props.config,
+                realWorldUnitsCalibrationYSizeAdjustment: event.target.valueAsNumber,
+              });
+            }}
+          />
+          <span>150%</span>
+        </div>
+      </div>
+    );
+  }
+
+  paperSizeOptions() {
+    return [
+      <optgroup key="1" label="Common">
+        {commonPaperSizeNames.map(name => {
+          return (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          );
+        })}
+      </optgroup>,
+      <optgroup key="2" label="Other">
+        {otherPaperSizeNames.map(name => {
+          return (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          );
+        })}
+      </optgroup>
+    ];
   }
 }

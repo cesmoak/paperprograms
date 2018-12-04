@@ -7,6 +7,17 @@ import evaluateProgram from './evaluateProgram';
 import FactLogDb from '../factLog/FactLogDb';
 import { updateCameraSnapshot } from './cameraSnapshot';
 const acorn = require('acorn');
+import {
+  projectPoint,
+  projectPoints,
+  div,
+  cornerPointsArray,
+  cornerPointsFromArray,
+  cmToInches,
+  averageDimensions
+} from '../utils';
+import Matrix from 'node-matrices';
+import { Transform } from '../transform';
 
 const state = (window.$state = {
   runningProgramsByNumber: {},
@@ -165,6 +176,20 @@ function updateAlignmentHelper() {
   showAlignmentHelper = show;
 }
 
+/**
+ * A high-level description of the main loop:
+ * - get updated system state
+ * - get updated list of visible programs
+ * - initialize new programs
+ * - determine programs to remove
+ * - filter claims/wishes for programs to be removed
+ * - init fact db
+ * - add claims/wishes made last frame
+ * - add base claims
+ * - reset state with only static whens/claims/etc
+ * - evaluate whens from fact db (i.e., evaluate the running programs)
+ * - repeat
+ */
 function main() {
   const programsToRun = getProgramsToRun();
   state.markers = JSON.parse(localStorage.paperProgramsMarkers || '[]');
@@ -251,25 +276,70 @@ function evaluateClaimsAndWhens() {
   // base claims
 
   db.addClaim(baseClaim('current time is @', [Date.now()]));
+
+  const projectorSize = { x: document.body.clientWidth, y: document.body.clientHeight };
+  const projectorUnitToWorldMatrix = new Matrix(...state.paperProgramsConfig.projectorUnitToWorldMatrix);
+  const scaleInchesToCm = {x: 2.54, y: 2.54};
+  const scaleCmToInches = {x: 1 / 2.54, y: 1 / 2.54};
+
   db.addClaim(baseClaim('@ is a @', ['table', 'supporter']));
   db.addClaim(
     baseClaim('@ has corner points @', [
       'table',
-      {
-        topLeft: { x: 0, y: 0 },
-        topRight: { x: document.body.clientWidth - 1, y: 0 },
-        bottomRight: { x: document.body.clientWidth - 1, y: document.body.clientHeight - 1 },
-        bottomLeft: { x: 0, y: document.body.clientHeight - 1 },
-      },
+      cornerPointsFromArray(cornerPointsArray(projectorSize.x, projectorSize.y))
     ])
   );
 
-  const multPoint = { x: document.body.clientWidth, y: document.body.clientHeight };
+  const projectorUnitToWorldCm = new Transform(projectorUnitToWorldMatrix);
+  db.addClaim(
+    baseClaim('@ has corner points @ in cm', [
+      'table',
+      cornerPointsFromArray(projectorUnitToWorldCm.applyToPoints(cornerPointsArray(1, 1)))
+    ])
+  );
+
+  const projectorUnitToWorldInches = projectorUnitToWorldCm.scale(scaleCmToInches);
+  db.addClaim(
+    baseClaim('@ has corner points @ in inches', [
+      'table',
+      cornerPointsFromArray(projectorUnitToWorldInches.applyToPoints(cornerPointsArray(1, 1)))
+    ])
+  );
+
+  const worldToProjectorUnitMatrix = projectorUnitToWorldMatrix.adjugate();
+
+  const worldToProjectorTransform = new Transform(worldToProjectorUnitMatrix).scale(projectorSize);
+  const projectorToWorldTransform = new Transform().scale(div({x: 1, y: 1}, projectorSize)).transform(projectorUnitToWorldMatrix);
+
+  db.addClaim(baseClaim('@ has point transform @ from cm to projector', [
+    'table',
+    worldToProjectorTransform,
+  ]));
+
+  db.addClaim(baseClaim('@ has point transform @ from projector to cm', [
+    'table',
+    projectorToWorldTransform,
+  ]));
+
+  const worldInchesToProjectorTransform = new Transform().scale(scaleInchesToCm).transform(worldToProjectorTransform.matrix);
+  const projectorToWorldInchesTransform = projectorToWorldTransform.scale(scaleCmToInches);
+
+  db.addClaim(baseClaim('@ has point transform @ from inches to projector', [
+    'table',
+    worldInchesToProjectorTransform,
+  ]));
+
+  db.addClaim(baseClaim('@ has point transform @ from projector to inches', [
+    'table',
+    projectorToWorldInchesTransform,
+  ]));
 
   // markers
 
   const markersByPaper = {};
   const sizeByPaper = {};
+  const sizeByPaperCm = {};
+  const sizeByPaperInches = {};
 
   state.markers.forEach(({ positionOnPaper, paperNumber, colorName, color }) => {
     if (!paperNumber) {
@@ -287,28 +357,31 @@ function evaluateClaimsAndWhens() {
 
       const { points } = state.runningProgramsByNumber[paperNumber];
 
-      const topLeft = mult(points[0], multPoint);
-      const topRight = mult(points[1], multPoint);
-      const bottomRight = mult(points[2], multPoint);
-      const bottomLeft = mult(points[3], multPoint);
+      const pointsArray = points.map(point => mult(point, projectorSize));
+      sizeByPaper[paperNumber] = averageDimensions(cornerPointsFromArray(pointsArray));
 
-      sizeByPaper[paperNumber] = {
-        x: (distance(topLeft, topRight) + distance(bottomLeft, bottomRight)) / 2,
-        y: (distance(topRight, bottomRight) + distance(topLeft, bottomLeft)) / 2,
-      };
+      const pointsCmArray = projectPoints(points, projectorUnitToWorldMatrix);
+      sizeByPaperCm[paperNumber] = averageDimensions(cornerPointsFromArray(pointsCmArray));
+
+      const pointsInchesArray = pointsCmArray.map(point => cmToInches(point));
+      sizeByPaperInches[paperNumber] = averageDimensions(cornerPointsFromArray(pointsInchesArray));
     }
 
     markersByPaper[paperNumber].push({
       color: colorName,
       colorRGB: color,
       position: mult(positionOnPaper, sizeByPaper[paperNumber]),
+      positionCm: mult(positionOnPaper, sizeByPaperCm[paperNumber]),
+      positionInches: mult(positionOnPaper, sizeByPaperInches[paperNumber]),
     });
   });
 
   const globalMarkers = state.markers.map(({ colorName, position, color }) => ({
     color: colorName,
     colorRGB: color,
-    position: mult(position, multPoint),
+    position: mult(position, projectorSize),
+    positionCm: projectPoint(position, projectorUnitToWorldMatrix),
+    positionInches: cmToInches(projectPoint(position, projectorUnitToWorldMatrix)),
   }));
   db.addClaim(baseClaim('@ has markers @', ['table', globalMarkers]));
 
@@ -325,26 +398,68 @@ function evaluateClaimsAndWhens() {
       baseClaim('@ has markers @', [program.number, markersByPaper[program.number] || []])
     );
 
+    // Projector space
     if (program.points) {
       db.addClaim(
         baseClaim('@ has corner points @', [
           program.number,
-          {
-            topLeft: mult(program.points[0], multPoint),
-            topRight: mult(program.points[1], multPoint),
-            bottomRight: mult(program.points[2], multPoint),
-            bottomLeft: mult(program.points[3], multPoint),
-          },
+          cornerPointsFromArray(program.points.map(point => mult(point, projectorSize))),
         ])
       );
+    }
+
+    if (program.pointsWorld) {
+      db.addClaim(
+        baseClaim('@ has corner points @ in cm', [
+          program.number,
+          cornerPointsFromArray(program.pointsWorld),
+        ])
+      );
+
+      const pointsInches = program.pointsWorld.map(point => cmToInches(point));
+      db.addClaim(
+        baseClaim('@ has corner points @ in inches', [
+          program.number,
+          cornerPointsFromArray(pointsInches),
+        ])
+      );
+
+      const paperCmToProjectorUnitMatrix = new Matrix(...program.paperCmToProjectorUnitMatrix);
+      const projectorUnitToPaperCmMatrix = paperCmToProjectorUnitMatrix.adjugate();
+
+      const paperCmToProjectorTransform = new Transform(paperCmToProjectorUnitMatrix).scale(projectorSize);
+      const projectorToPaperCmTransform = new Transform().scale(div({x: 1, y: 1}, projectorSize)).transform(projectorUnitToPaperCmMatrix);
+
+      db.addClaim(baseClaim('@ has point transform @ from paper cm to projector', [
+        program.number,
+        paperCmToProjectorTransform,
+      ]));
+
+      db.addClaim(baseClaim('@ has point transform @ from projector to paper cm', [
+        program.number,
+        projectorToPaperCmTransform,
+      ]));
+
+      const paperInchesToProjectorTransform = new Transform().scale(scaleInchesToCm).transform(paperCmToProjectorTransform.matrix);
+      const projectorToPaperInchesTransform = projectorToPaperCmTransform.scale(scaleCmToInches);
+
+      db.addClaim(baseClaim('@ has point transform @ from paper inches to projector', [
+        program.number,
+        paperInchesToProjectorTransform,
+      ]));
+
+      db.addClaim(baseClaim('@ has point transform @ from projector to paper inches', [
+        program.number,
+        projectorToPaperInchesTransform,
+      ]));
     }
   });
 
   // custom claims
 
   const cornerShapes = {
-    points: state.corners.map((points) => points.map(point => mult(point, multPoint))),
-    width: state.cornerWidth * multPoint.x
+    points: state.corners.map((points) => points.map(point => mult(point, projectorSize))),
+    width: state.cornerWidth * projectorSize.x
   };
   db.addClaim(baseClaim('@ has corner shapes @', ['table', cornerShapes]));
 
@@ -398,7 +513,3 @@ setInterval(() => {
       xhr.put(program.debugUrl, { json: debugData }, () => {});
     });
 }, 300);
-
-function distance(point1, point2) {
-  return Math.sqrt(Math.pow(point1.x - point2.x, 2) + Math.pow(point1.y - point2.y, 2));
-}

@@ -22,6 +22,11 @@ const defaultConfig = {
   freezeDetection: false,
   showPrintedInQueue: false,
   scaleFactor: 4,
+
+  // Real-world units calibration
+  updateRealWorldUnits: true,
+  realWorldUnitsCalibrationXSizeAdjustment: 100,
+  realWorldUnitsCalibrationYSizeAdjustment: 100,
 };
 
 function sanitizeConfig(config) {

@@ -20,14 +20,17 @@ module.exports = function() {
         {paper} has width {paperWidth},
         {paper} has height {paperHeight}`(
     ({ paper, paperWidth, paperHeight, points, canvasName, priority }) => {
+      const width = Math.floor(Math.min(paperWidth, maxWidth));
+      const height = Math.floor(Math.min(paperHeight, maxHeight));
+
       const canvas = getCanvasElement(paper, canvasName);
       canvas.style.zIndex = priority;
-      canvas.width = Math.floor(Math.min(paperWidth, maxWidth));
-      canvas.height = Math.floor(Math.min(paperHeight, maxHeight));
+      canvas.width = width;
+      canvas.height = height;
       canvas.style.transform = getCssTransform({
         points,
-        paperHeight,
-        paperWidth,
+        paperWidth: width,
+        paperHeight: height,
       });
 
       Claim`${paper} has canvas ${canvas} with name ${canvasName}`;

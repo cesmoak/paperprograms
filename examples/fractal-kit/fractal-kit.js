@@ -53,10 +53,12 @@ class Viewport {
 
 // Palette setting
 
-let palette = new Array(255).fill(0).map((v, i) => [i, 0, 255 - i]);
+const defaultPalette = new Array(255).fill(0).map((v, i) => [i, 0, 255 - i]);
 
-When` {someone} wishes fractals have palette {_palette}`(({ _palette }) => {
-  palette = _palette;
+WithAll` {someone} wishes fractals have palette {palette}`(matches => {
+  const palette = matches.length === 0
+    ? defaultPalette
+    : matches[0].palette;
   Claim` fractals have palette ${palette}`;
 });
 

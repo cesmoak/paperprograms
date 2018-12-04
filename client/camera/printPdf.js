@@ -1,14 +1,16 @@
 import blobStream from 'blob-stream';
 
 import { code8400 } from '../dotCodes';
+import { paperConfig } from './geometryConstants';
 
 const PDFDocument = require('pdfkit');
 
 // Draws a pattern using colours from `pattern` like:
-// 2 3 4
+// 3 4 5 6
+// 2
 // 1
 // 0
-// with `x,y` in the middle of dot (2); `angle` rotating clock-wards; with
+// with `x,y` in the middle of dot (3); `angle` rotating clock-wards; with
 // radius `circleRadius`; spaced out by `circleDistance`.
 function drawLPattern({ doc, pattern, x, y, angle, circleRadius, circleDistance }) {
   doc.save();
@@ -27,6 +29,7 @@ function drawLPattern({ doc, pattern, x, y, angle, circleRadius, circleDistance 
 // Draws four patterns, with `patterns` specified top-left first, then
 // clock-wards. Will stay in the bounds of (0,0) to (width,height).
 function drawPagePatterns({ doc, patterns, width, height, circleRadius, circleDistance, margin }) {
+  const { titleOffset } = paperConfig;
   const m = margin + circleRadius;
   drawLPattern({ doc, pattern: patterns[0], x: m, y: m, angle: 0, circleRadius, circleDistance });
   drawLPattern({
@@ -42,7 +45,7 @@ function drawPagePatterns({ doc, patterns, width, height, circleRadius, circleDi
     doc,
     pattern: patterns[2],
     x: width - m,
-    y: height - m - 50,
+    y: height - m - titleOffset,
     angle: 180,
     circleRadius,
     circleDistance,
@@ -51,7 +54,7 @@ function drawPagePatterns({ doc, patterns, width, height, circleRadius, circleDi
     doc,
     pattern: patterns[3],
     x: m,
-    y: height - m - 50,
+    y: height - m - titleOffset,
     angle: 270,
     circleRadius,
     circleDistance,
@@ -62,9 +65,7 @@ function drawPage({ patterns, title, code, metadata, paperSize }) {
   const doc = new PDFDocument({ size: paperSize, margin: 0 });
   const { width, height } = doc.page;
 
-  const circleRadius = 17;
-  const circleDistance = 15;
-  const margin = 10;
+  const { circleRadius, circleDistance, margin } = paperConfig;
   drawPagePatterns({ doc, patterns, circleRadius, circleDistance, margin, width, height });
 
   const textMargin = 10;

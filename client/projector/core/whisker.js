@@ -1,15 +1,8 @@
 /*globals WithAll, When, Claim, Wish */
 
 module.exports = function() {
-  const { forwardProjectionMatrixForPoints, mult, projectPoint } = require('../../utils');
-
-  function unprojectPoint(point, points, paperWidth, paperHeight) {
-    const matrix = forwardProjectionMatrixForPoints(Object.values(points)).adjugate();
-    return mult(projectPoint(point, matrix), { x: paperWidth, y: paperHeight });
-  }
-
   const defaultWhiskerPriority = 500;
-  const defaultWhiskerLength = 200;
+  const defaultWhiskerLengthCm = 12;
 
   When` {supporter} is a ${'supporter'}`(({ supporter }) => {
     Wish`${supporter} has canvas with name ${'whiskerCanvas'} and priority ${defaultWhiskerPriority}`;
@@ -21,44 +14,61 @@ module.exports = function() {
 
     WithAll` {someone} wishes {whiskerPaper} has whisker that points {direction}`(matches => {
       matches.forEach(({ whiskerPaper, direction }) => {
-        Wish` ${whiskerPaper} has whisker that points ${direction} with length ${defaultWhiskerLength}`;
+        Wish` ${whiskerPaper} has whisker that points ${direction} with length ${defaultWhiskerLengthCm} cm`;
+      });
+    });
+
+    WithAll` {someone} wishes {whiskerPaper} has whisker that points {direction} with length {lengthInInches} inches`(matches => {
+      matches.forEach(({ whiskerPaper, direction, lengthInInches }) => {
+        const lengthInCm = lengthInInches * 2.54;
+        Wish` ${whiskerPaper} has whisker that points ${direction} with length ${lengthInCm} cm`;
       });
     });
 
     const directionLookup = {
-      up: ['topLeft', 'topRight'],
-      right: ['topRight', 'bottomRight'],
-      down: ['bottomRight', 'bottomLeft'],
-      left: ['bottomLeft', 'topLeft']
+      up: { start: {x: 0.5, y: 0}, dir: {x: 0, y: -1} },
+      right: { start: {x: 1, y: 0.5}, dir: {x: 1, y: 0} },
+      down: { start: {x: 0.5, y: 1}, dir: {x: 0, y: 1} },
+      left: { start: {x: 0, y: 0.5}, dir: {x: -1, y: 0} },
     };
 
-    WithAll` {someone} wishes {whiskerPaper} has whisker that points {direction} with length {length},
+    WithAll` {someone} wishes {whiskerPaper} has whisker that points {direction} with length {length} cm,
              {whiskerPaper} is on supporter ${supporter},
-             {whiskerPaper} has corner points {points}`(matches => {
+             {whiskerPaper} has width {width} cm,
+             {whiskerPaper} has height {height} cm,
+             {whiskerPaper} has point transform {paperCmToProjector} from paper cm to projector`(matches => {
       const ctx = canvas.getContext('2d');
-
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      matches.forEach(({ points, direction, whiskerPaper, length }) => {
-        ctx.strokeStyle = 'rgba(255, 0, 0)';
+      ctx.strokeStyle = 'rgba(255, 0, 0)';
+      matches.forEach(({ width, height, direction, whiskerPaper, length, paperCmToProjector }) => {
+        const result = directionLookup[direction];
+        if (!result) return;
+        const { start, dir } = result;
+        const whiskerStartPaperCm = {x: start.x * width, y: start.y * height};
+        const whiskerEndPaperCm = {
+          x: start.x * width + dir.x * length,
+          y: start.y * height + dir.y * length
+        };
+        const whiskerStart = paperCmToProjector.applyToPoint(whiskerStartPaperCm);
+        const whiskerEnd = paperCmToProjector.applyToPoint(whiskerEndPaperCm);
+        drawWhisker(ctx, whiskerStart, whiskerEnd);
 
-        const pointNames = directionLookup[direction];
-        if (!pointNames) return;
-        const from = points[pointNames[0]];
-        const to = points[pointNames[1]];
-        const { whiskerStart, whiskerEnd } = drawWhisker(from, to, length, ctx);
-
-        WithAll` {paper} has corner points {paperPoints},
-                 {paper} has width {paperWidth},
-                 {paper} has height {paperHeight},
-                 {paper} is a ${'program'}`(paperMatches => {
-          paperMatches.forEach(({ paper, paperPoints, paperWidth, paperHeight }) => {
-            if (paper === whiskerPaper) {
-              return;
-            }
-            if (intersectsPaper(whiskerStart, whiskerEnd, paperPoints)) {
+        WithAll` {paper} is a ${'program'},
+                 {paper} has point transform {projectorToPaperCm} from projector to paper cm,
+                 {paper} has width {width} cm,
+                 {paper} has height {height} cm,
+                 {paper} has {pixelsPerCm} pixels per cm`(paperMatches => {
+          paperMatches.forEach(({ paper, projectorToPaperCm, width, height, pixelsPerCm }) => {
+            if (paper === whiskerPaper) return;
+            const paperCm = projectorToPaperCm.applyToPoint(whiskerEnd);
+            const isOnPaper = isWithin(paperCm.x, 0, width) && isWithin(paperCm.y, 0, height);
+            if (isOnPaper) {
               Claim`${whiskerPaper} points at ${paper}`;
-              const paperPoint = unprojectPoint(whiskerEnd, paperPoints, paperWidth, paperHeight);
+              const paperPoint = {x: paperCm.x * pixelsPerCm.x, y: paperCm.y * pixelsPerCm.y};
+              const paperInches = {x: paperCm.x / 2.54, y: paperCm.y / 2.54};
               Claim`${whiskerPaper} points at ${paper} ending at point ${paperPoint}`;
+              Claim`${whiskerPaper} points at ${paper} ending at point ${paperCm} in cm`;
+              Claim`${whiskerPaper} points at ${paper} ending at point ${paperInches} in inches`;
             }
           });
         });
@@ -68,43 +78,15 @@ module.exports = function() {
 
   /* helper functions */
 
-  function drawWhisker(p1, p2, whiskerLength, ctx) {
-    const { x: x1, y: y1 } = p1;
-    const { x: x2, y: y2 } = p2;
-    const whiskerStart = {
-      x: (x1 + x2) / 2,
-      y: (y1 + y2) / 2,
-    };
-    const length = Math.sqrt((y2 - y1) ** 2 + (x2 - x1) ** 2);
-    const whiskerEnd = {
-      x: whiskerStart.x + (y2 - y1) / length * whiskerLength,
-      y: whiskerStart.y - (x2 - x1) / length * whiskerLength,
-    };
+  function drawWhisker(ctx, start, end) {
     ctx.beginPath();
-    ctx.moveTo(whiskerStart.x, whiskerStart.y);
-    ctx.lineTo(whiskerEnd.x, whiskerEnd.y);
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
     ctx.closePath();
     ctx.stroke();
-    return { whiskerStart, whiskerEnd };
   }
 
-  function intersects(v1, v2, v3, v4) {
-    const det = (v2.x - v1.x) * (v4.y - v3.y) - (v4.x - v3.x) * (v2.y - v1.y);
-    if (det === 0) {
-      return false;
-    } else {
-      const lambda = ((v4.y - v3.y) * (v4.x - v1.x) + (v3.x - v4.x) * (v4.y - v1.y)) / det;
-      const gamma = ((v1.y - v2.y) * (v4.x - v1.x) + (v2.x - v1.x) * (v4.y - v1.y)) / det;
-      return 0 < lambda && lambda < 1 && (0 < gamma && gamma < 1);
-    }
-  }
-
-  function intersectsPaper(whiskerStart, whiskerEnd, points) {
-    return (
-      intersects(whiskerStart, whiskerEnd, points.topLeft, points.topRight) ||
-      intersects(whiskerStart, whiskerEnd, points.topRight, points.bottomRight) ||
-      intersects(whiskerStart, whiskerEnd, points.bottomRight, points.bottomLeft) ||
-      intersects(whiskerStart, whiskerEnd, points.bottomLeft, points.topLeft)
-    );
+  function isWithin(value, min, max) {
+    return value >= min && value <= max;
   }
 };

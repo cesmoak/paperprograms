@@ -20,6 +20,8 @@ import {
 import { code8400 } from '../dotCodes';
 import { colorNames, cornerNames } from '../constants';
 import simpleBlobDetector from './simpleBlobDetector';
+import { updatedProjectorUnitToWorldMatrix, setupRealWorldUnitsForProgram } from './worldSpace';
+import { shrinkDotSizeFactor } from './geometryConstants';
 
 function keyPointToAvgColor(keyPoint, videoMat, scaleFactor) {
   const reduceSizeBy = 4;
@@ -112,6 +114,8 @@ function knobPointsToROI(knobPoints, videoMat) {
 
 let projectPointToUnitSquarePreviousKnobPoints;
 let projectPointToUnitSquarePreviousMatrix;
+
+// Map point in camera space to point in projector unit space
 function projectPointToUnitSquare(point, videoMat, knobPoints) {
   if (
     !projectPointToUnitSquarePreviousMatrix ||
@@ -184,6 +188,7 @@ export default function detectPrograms({
   videoCapture.read(videoMat);
 
   const knobPointMatrix = forwardProjectionMatrixForPoints(config.knobPoints);
+  // Map projetor unit space to camera space
   const mapToKnobPointMatrix = point => {
     return mult(projectPoint(point, knobPointMatrix), { x: videoMat.cols, y: videoMat.rows });
   };
@@ -211,6 +216,8 @@ export default function detectPrograms({
 
   const videoROI = knobPointsToROI(config.knobPoints, videoMat);
   const clippedVideoMat = videoMat.roi(videoROI);
+
+  // Points are in clipped camera space
   let allPoints = simpleBlobDetector(clippedVideoMat, {
     filterByCircularity: true,
     minCircularity: 0.9,
@@ -221,6 +228,8 @@ export default function detectPrograms({
   });
 
   clippedVideoMat.delete();
+
+  // Map points to camera space
   allPoints.forEach(keyPoint => {
     keyPoint.matchedShape = false; // is true if point has been recognised as part of a shape
     keyPoint.pt.x += videoROI.x;
@@ -441,13 +450,15 @@ export default function detectPrograms({
     }
 
     if (points[0] && points[1] && points[2] && points[3]) {
-      const scaledPoints = shrinkPoints(avgKeyPointSize * 0.75, points).map(point =>
+      // Shrink points in camera space; map camera space to projector unit space
+      const scaledPoints = shrinkPoints(avgKeyPointSize * shrinkDotSizeFactor, points).map(point =>
         projectPointToUnitSquare(point, videoMat, config.knobPoints)
       );
 
       const programToRender = {
         points: scaledPoints,
         number: id,
+        // Used to map from projector unit space to paper unit space
         projectionMatrix: forwardProjectionMatrixForPoints(scaledPoints).adjugate(),
       };
       programsToRender.push(programToRender);
@@ -530,6 +541,12 @@ export default function detectPrograms({
     };
   });
 
+  // Setup real-world units (cm)
+  const projectorUnitToWorldMatrix = updatedProjectorUnitToWorldMatrix(config, programsToRender);
+  if (projectorUnitToWorldMatrix) {
+    programsToRender.forEach(program => setupRealWorldUnitsForProgram(program, projectorUnitToWorldMatrix));
+  }
+
   videoMat.delete();
 
   return {
@@ -540,5 +557,8 @@ export default function detectPrograms({
     markers,
     dataToRemember: { vectorsBetweenCorners },
     framerate: Math.round(1000 / (Date.now() - startTime)),
+    projectorUnitToWorldMatrix: projectorUnitToWorldMatrix
+      ? projectorUnitToWorldMatrix.data
+      : null,
   };
 }

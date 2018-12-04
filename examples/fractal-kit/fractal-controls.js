@@ -23,14 +23,14 @@ const scales = {
   log: { map: mapLog, unmap: unmapLog },
 };
 
-function controlsContext(size, markers) {
+function controlsContext(size, markers, pixelsPerInch) {
   const sortedMarkers = Object.values(markers).sort((a, b) => a.position.x - b.position.x);
-  return { x: 0, y: 0, size, markers: sortedMarkers };
+  return { x: 0, y: 0, size, markers: sortedMarkers, pixelsPerInch };
 }
 
-const textSize = 15;
-const inputHeight = 20;
-const paddingBottom = 15;
+const textSize = 0.42;
+const inputHeight = 0.57;
+const paddingBottom = 0.42;
 const selectionForeground = 'rgba(128, 128, 0, 0.2)';
 const background = 'rgba(128, 128, 0, 0.1)';
 const foreground = 'rgba(128, 128, 0, 0.5)';
@@ -50,7 +50,7 @@ function inputRect(ctx, selectX, height) {
   ctx.y += height;
   return [
     Shapes.rect({
-      x: ctx.x, y, width: ctx.size.x - 1, height,
+      x: ctx.x, y, width: ctx.size.x, height,
       fill: background, stroke: foreground,
     }),
     Shapes.rect({
@@ -71,10 +71,10 @@ function getMarkers(ctx, name, y, height) {
   lastMarkerXsMap[name] = lastMarkerXs;
   const found = [];
   for (const [index, marker] of Object.entries(ctx.markers)) {
-    if (isWithin(marker.position.y, ctx.y + y, ctx.y + height)) {
-      let x = marker.position.x;
+    if (isWithin(marker.positionInches.y, ctx.y + y, ctx.y + height)) {
+      let x = marker.positionInches.x;
       const lastMarkerX = lastMarkerXs[index];
-      if (lastMarkerX && Math.abs(lastMarkerX - x) < 2) {
+      if (lastMarkerX && Math.abs(lastMarkerX - x) < 2 / ctx.pixelsPerInch.x) {
         x = lastMarkerX;
       }
       else {
@@ -98,7 +98,7 @@ function slider(ctx, name, scale, min, max, defaultValue, decimalPoints) {
     label(ctx, `${name} = ${value}`),
     ...inputRect(ctx, scales[scale].unmap(value, min, max, 0, ctx.size.x), inputHeight),
   );
-  Wish` ${you} has illumination ${ill}`;
+  Wish` ${you} has illumination ${ill} in inches`;
   ctx.y += paddingBottom;
   
   return value;
@@ -160,7 +160,7 @@ function multLuminance(color, luminance) {
   return [color[0] * luminance, color[1], color[2]];
 }
 
-function getColorStops(ctx, markers, canvas) {
+function getColorStops(ctx, markers) {
   const colorStops = markers.map(marker => ({
     value: map(marker.x, 0, ctx.size.x, 0, 1),
     color: marker.marker.colorRGB
@@ -214,31 +214,34 @@ function getImageData(canvas) {
 }
 
 function paletteMaker(ctx, name, luminance) {
-  const markerHeight = 50;
+  const markerHeight = 1.5;
 
   const canvasName = `palette-${name}`;
   Wish` ${you} has canvas with name ${canvasName}`;
   When` ${you} has canvas {canvas} with name ${canvasName}`(({ canvas }) => {
     const markers = getMarkers(ctx, name, textSize + inputHeight, textSize + inputHeight + markerHeight);
-    const colorStops = getColorStops(ctx, markers, canvas);
+    const colorStops = getColorStops(ctx, markers);
     colorStops.forEach(stop => stop.lab = multLuminance(rgbToLab(stop.color), luminance));
-    const palette = linearGradient(colorStops, ctx.size.x);
+    const palette = linearGradient(colorStops, 256);
 
     const marks = colorStops.map(stop => {
       return Shapes.rect({
         x: ctx.x + stop.value * ctx.size.x, y: ctx.y + textSize + inputHeight,
-        width: 1, height: inputHeight / 3,
+        width: 1 / ctx.pixelsPerInch.x, height: inputHeight / 3,
         stroke: selectionForeground,
       });
     });
 
     const [canvasCtx, imageData] = getImageData(canvas);
-    palette.forEach((color, x) => {
-      for (let y = 0; y < inputHeight; y++) {
-        const index = ctx.x + x + (ctx.y + textSize + y) * canvas.width;
+    for (let x = 0; x < imageData.width; x++) {
+      const color = palette[Math.floor(x / imageData.width * palette.length)];
+      for (let y = 0; y < inputHeight * ctx.pixelsPerInch.y; y++) {
+        const index =
+          Math.floor(ctx.x * ctx.pixelsPerInch.x + x)
+          + Math.floor((ctx.y + textSize) * ctx.pixelsPerInch.y + y) * canvas.width;
         imageData.data.set([...color, 255], index * 4);
       }
-    });
+    }
     canvasCtx.putImageData(imageData, 0, 0);
     
     const ill = new Illumination(
@@ -247,7 +250,7 @@ function paletteMaker(ctx, name, luminance) {
       ...inputRect(ctx, 0, inputHeight),
       ...inputRect(ctx, 0, markerHeight),
     );
-    Wish` ${you} has illumination ${ill}`;
+    Wish` ${you} has illumination ${ill} in inches`;
 
     ctx.y += paddingBottom;
 
@@ -255,11 +258,11 @@ function paletteMaker(ctx, name, luminance) {
   });
 }
 
-When` ${you} has width {paperWidth},
-      ${you} has height {paperHeight},
-      ${you} has markers {markers}`(({ paperWidth, paperHeight, markers }) => {
-  const size = { x: Math.floor(paperWidth), y: Math.floor(paperHeight) };
-  const ctx = controlsContext(size, markers);
+When` ${you} has width {width} inches,
+      ${you} has height {height} inches,
+      ${you} has markers {markers},
+      ${you} has {pixelsPerInch} pixels per inch`(({ width, height, markers, pixelsPerInch }) => {
+  const ctx = controlsContext({ x: width, y: height }, markers, pixelsPerInch);
   
   const iterations = slider(ctx, 'Iterations', 'log', 1, 512, 100, 0);
   Wish` fractals have ${iterations} iterations`;
